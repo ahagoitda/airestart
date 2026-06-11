@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import type { PersonaType, RegretType, ReturnEra, StoryStyle, UserProfile } from '@/types';
-import { DEFAULT_STYLE, STYLE_GROUPS } from '@/lib/styles';
+import { ALL_STYLES, DEFAULT_STYLE, STYLE_GROUPS } from '@/lib/styles';
 import { saveProfile, startSession } from '@/lib/story-engine';
 import { colors, spacing, typography } from '@/lib/theme';
 
@@ -91,6 +91,7 @@ export default function OnboardingScreen() {
   const [starting, setStarting] = useState(false);
 
   const isLast = step === STEPS.length - 1;
+  const selectedStyle = ALL_STYLES.find((s) => s.value === style);
 
   const next = async () => {
     if (!isLast) {
@@ -126,6 +127,11 @@ export default function OnboardingScreen() {
         </View>
 
         <Text style={styles.question}>{STEPS[step]}</Text>
+        {step === 3 && selectedStyle && (
+          <Text style={styles.styleHint}>
+            {selectedStyle.label} — {selectedStyle.description}
+          </Text>
+        )}
 
         <ScrollView style={styles.optionsScroll} contentContainerStyle={styles.options}>
           {step === 0 &&
@@ -155,23 +161,35 @@ export default function OnboardingScreen() {
                 onPress={() => setEra(e.value)}
               />
             ))}
-          {step === 3 &&
-            STYLE_GROUPS.map((group) => (
-              <View key={group.group}>
-                <Text style={styles.groupHeader}>{group.group}</Text>
-                <View style={styles.groupOptions}>
-                  {group.styles.map((s) => (
-                    <OptionRow
-                      key={s.value}
-                      label={s.label}
-                      description={s.description}
-                      selected={style === s.value}
-                      onPress={() => setStyle(s.value)}
-                    />
-                  ))}
+          {step === 3 && (
+            <>
+              {STYLE_GROUPS.map((group) => (
+                <View key={group.group}>
+                  <Text style={styles.groupHeader}>{group.group}</Text>
+                  <View style={styles.chipWrap}>
+                    {group.styles.map((s) => {
+                      const selected = style === s.value;
+                      return (
+                        <Pressable
+                          key={s.value}
+                          style={[styles.chip, selected && styles.chipSelected]}
+                          onPress={() => setStyle(s.value)}
+                          accessibilityRole="radio"
+                          accessibilityState={{ selected }}
+                        >
+                          <Text
+                            style={[styles.chipText, selected && styles.chipTextSelected]}
+                          >
+                            {s.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
                 </View>
-              </View>
-            ))}
+              ))}
+            </>
+          )}
           {step === 4 && (
             <>
               <TextInput
@@ -228,7 +246,32 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     marginBottom: spacing.sm,
   },
-  groupOptions: { gap: spacing.sm },
+  chipWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  chip: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.surface,
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+  },
+  chipSelected: {
+    borderColor: colors.gold,
+    backgroundColor: colors.surfaceRaised,
+  },
+  chipText: { color: colors.textMuted, fontSize: 15 },
+  chipTextSelected: { color: colors.gold, fontWeight: '600' },
+  styleHint: {
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: -spacing.md,
+    marginBottom: spacing.sm,
+  },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
