@@ -12,6 +12,7 @@ import {
   episodeJsonSchema,
   type GenerateRequest,
 } from '../lib/prompt.js';
+import { saveStoryEvent, searchRelatedEvents } from '../lib/rag.js';
 
 export const config = { runtime: 'edge' };
 
@@ -45,12 +46,6 @@ function isValidRequest(body: unknown): body is GenerateRequest {
   );
 }
 
-// RAG 기초 버전: 아직 pgvector 검색 없이 빈 컨텍스트를 반환한다.
-// TODO(7~8주차): story_events 임베딩 → match_story_events RPC로 상위 k개 조회
-async function searchRelatedEvents(_req: GenerateRequest): Promise<string> {
-  return '';
-}
-
 export default async function handler(request: Request): Promise<Response> {
   if (request.method !== 'POST') {
     return json({ error: 'POST만 지원합니다.' }, 405);
@@ -71,7 +66,11 @@ export default async function handler(request: Request): Promise<Response> {
     return json({ error: '요청 형식이 올바르지 않습니다.' }, 400);
   }
 
-  const ragResults = await searchRelatedEvents(body);
+  // RAG: 마지막 선택과 관련된 이전 사건 검색 (Supabase 미설정 시 빈 컨텍스트)
+  const ragQuery = body.lastChoice ?? body.summary;
+  const ragResults = await searchRelatedEvents(body.sessionId, ragQuery, apiKey).catch(
+    () => '',
+  );
   const systemPrompt = buildSystemPrompt(body, ragResults);
 
   const res = await fetch(OPENAI_URL, {
@@ -109,10 +108,20 @@ export default async function handler(request: Request): Promise<Response> {
     return json({ error: 'AI 응답이 비어 있습니다.' }, 502);
   }
 
+  let episode: { episodeNumber: number; title: string; content: string };
   try {
-    const episode = JSON.parse(content);
-    return json(episode);
+    episode = JSON.parse(content);
   } catch {
     return json({ error: 'AI 응답 파싱에 실패했습니다.' }, 502);
   }
+
+  // 생성된 에피소드를 RAG 사건으로 저장 — 실패해도 응답은 정상 반환
+  await saveStoryEvent(
+    body.sessionId,
+    episode.episodeNumber,
+    `${episode.title}: ${episode.content}`,
+    apiKey,
+  ).catch((e) => console.error('사건 저장 실패:', e));
+
+  return json(episode);
 }

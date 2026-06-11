@@ -4,55 +4,126 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import type { Choice, StorySession } from '@/types';
 import {
-  applyChoice,
-  getCurrentNode,
+  applyAiEpisode,
+  applyPresetChoice,
+  getCurrentScene,
   loadSession,
   regress,
   FREE_REGRESSION_LIMIT,
 } from '@/lib/story-engine';
-import { getPreset, personalize } from '@/lib/presets';
+import { generateEpisode, isAiAvailable } from '@/lib/ai';
+import { personalize } from '@/lib/presets';
+import { shareStory } from '@/lib/export';
 import TypewriterText from '@/components/TypewriterText';
 import ChoiceButton from '@/components/ChoiceButton';
 import SceneTransition from '@/components/SceneTransition';
 import LoadingIndicator from '@/components/LoadingIndicator';
 import EpisodeIndicator from '@/components/EpisodeIndicator';
+import AdBanner from '@/components/AdBanner';
 import { colors, spacing } from '@/lib/theme';
 
 export default function PlayScreen() {
   const [session, setSession] = useState<StorySession | null>(null);
   const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
   const [typingDone, setTypingDone] = useState(false);
 
   useEffect(() => {
-    void loadSession().then((s) => {
+    void (async () => {
+      const s = await loadSession();
       if (!s) {
         router.replace('/onboarding');
         return;
       }
+      // AI 모드 첫 진입: 1화를 생성한다
+      if (s.mode === 'ai' && s.aiEpisodes.length === 0 && s.status === 'in_progress') {
+        setSession(s);
+        setLoading(false);
+        await generateNext(s, null);
+        return;
+      }
       setSession(s);
       setLoading(false);
-    });
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function generateNext(current: StorySession, choice: Choice | null) {
+    if (!isAiAvailable()) {
+      Alert.alert(
+        'AI 서버 미설정',
+        'EXPO_PUBLIC_API_URL이 설정되지 않아 AI 생성을 사용할 수 없습니다.',
+        [{ text: '확인', onPress: () => router.replace('/(tabs)') }],
+      );
+      return;
+    }
+    setGenerating(true);
+    try {
+      const episode = await generateEpisode(current);
+      const updated = await applyAiEpisode(current, choice, episode);
+      setTypingDone(false);
+      setSession(updated);
+    } catch (e) {
+      Alert.alert(
+        '생성 실패',
+        e instanceof Error ? e.message : '에피소드 생성 중 오류가 발생했습니다.',
+        [{ text: '확인' }],
+      );
+    } finally {
+      setGenerating(false);
+    }
+  }
 
   if (loading || !session) {
     return <LoadingIndicator message="회귀 좌표를 계산하는 중..." />;
   }
 
-  const preset = getPreset(session.presetId);
-  const node = getCurrentNode(session);
-  const content = personalize(node.content, session.profile.name);
+  if (generating) {
+    return <LoadingIndicator message="운명을 다시 쓰는 중..." />;
+  }
+
+  const scene = getCurrentScene(session);
+  if (!scene) {
+    // AI 모드인데 에피소드가 아직 없음 (생성 실패 후) — 재시도 제공
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.retryWrap}>
+          <Text style={styles.retryText}>이야기를 불러오지 못했습니다.</Text>
+          <Pressable
+            style={styles.regressButton}
+            onPress={() => void generateNext(session, null)}
+          >
+            <Text style={styles.regressText}>다시 시도</Text>
+          </Pressable>
+          <Pressable style={styles.homeButton} onPress={() => router.replace('/(tabs)')}>
+            <Text style={styles.homeText}>홈으로</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const content = personalize(scene.content, session.profile.name);
 
   const onChoice = async (choice: Choice) => {
     if (choice.isPremium && !session.isPremium) {
       Alert.alert(
         '🔒 프리미엄 선택지',
         '모험 선택지는 프리미엄(월 ₩5,900) 전용입니다.\nAI가 당신만의 전개를 실시간으로 생성합니다.',
-        [{ text: '확인' }],
+        [
+          { text: '닫기', style: 'cancel' },
+          { text: '구독 보러가기', onPress: () => router.replace('/(tabs)/settings') },
+        ],
       );
       return;
     }
+    // AI 모드이거나, 프리셋의 모험(프리미엄) 선택지 → AI 생성으로 진행
+    if (session.mode === 'ai' || !choice.nextNodeId) {
+      await generateNext(session, choice);
+      return;
+    }
     setTypingDone(false);
-    const updated = await applyChoice(session, choice);
+    const updated = await applyPresetChoice(session, choice);
     setSession(updated);
   };
 
@@ -61,12 +132,27 @@ export default function PlayScreen() {
       setTypingDone(false);
       const updated = await regress(session);
       setSession(updated);
+      if (updated.mode === 'ai') {
+        await generateNext(updated, null);
+      }
     } catch {
       Alert.alert(
         '회귀 한도 도달',
         `무료 플랜은 회귀 루프 ${FREE_REGRESSION_LIMIT}회까지 가능합니다.\n프리미엄에서 무제한 회귀를 열어보세요.`,
         [{ text: '확인', onPress: () => router.replace('/(tabs)') }],
       );
+    }
+  };
+
+  const onExport = async () => {
+    if (!session.isPremium) {
+      Alert.alert('🔒 프리미엄 기능', '소설 내보내기는 프리미엄 전용입니다.');
+      return;
+    }
+    try {
+      await shareStory(session);
+    } catch {
+      // 사용자가 공유 시트를 닫은 경우 등 — 무시
     }
   };
 
@@ -77,22 +163,22 @@ export default function PlayScreen() {
           <Text style={styles.headerBack}>‹ 홈</Text>
         </Pressable>
         <Text style={styles.headerTitle}>
-          [에피소드 {node.episodeNumber}] {node.title}
+          [에피소드 {scene.episodeNumber}] {scene.title}
         </Text>
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <SceneTransition sceneKey={node.id}>
+        <SceneTransition sceneKey={scene.id}>
           <TypewriterText
-            key={node.id}
+            key={scene.id}
             text={content}
             onComplete={() => setTypingDone(true)}
           />
         </SceneTransition>
 
-        {typingDone && !node.isEnding && (
+        {typingDone && !scene.isEnding && (
           <View style={styles.choices}>
-            {node.choices.map((choice) => (
+            {scene.choices.map((choice) => (
               <ChoiceButton
                 key={choice.id}
                 choice={choice}
@@ -103,12 +189,17 @@ export default function PlayScreen() {
           </View>
         )}
 
-        {typingDone && node.isEnding && (
+        {typingDone && scene.isEnding && (
           <View style={styles.choices}>
             <Pressable style={styles.regressButton} onPress={() => void onRegress()}>
               <Text style={styles.regressText}>⟲ 다시 회귀하기</Text>
               <Text style={styles.regressSub}>
                 {session.regressionCount + 1}회차 종료 — 다른 선택, 다른 운명
+              </Text>
+            </Pressable>
+            <Pressable style={styles.exportButton} onPress={() => void onExport()}>
+              <Text style={styles.exportText}>
+                소설로 내보내기{session.isPremium ? '' : '  🔒'}
               </Text>
             </Pressable>
             <Pressable
@@ -122,8 +213,9 @@ export default function PlayScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <EpisodeIndicator current={node.episodeNumber} total={preset.totalEpisodes} />
+        <EpisodeIndicator current={scene.episodeNumber} total={session.totalEpisodes} />
       </View>
+      <AdBanner visible={!session.isPremium} />
     </SafeAreaView>
   );
 }
@@ -151,6 +243,15 @@ const styles = StyleSheet.create({
   },
   regressText: { color: '#0A0A0A', fontSize: 17, fontWeight: '700' },
   regressSub: { color: 'rgba(0,0,0,0.55)', fontSize: 12 },
+  exportButton: {
+    marginTop: spacing.sm,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.goldDim,
+  },
+  exportText: { color: colors.gold, fontSize: 15, fontWeight: '600' },
   homeButton: {
     marginTop: spacing.sm,
     paddingVertical: 14,
@@ -160,5 +261,17 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   homeText: { color: colors.textMuted, fontSize: 15 },
+  retryWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  retryText: {
+    color: colors.textMuted,
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: spacing.md,
+  },
   footer: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
 });

@@ -56,6 +56,25 @@ CREATE POLICY "Users can insert own sessions" ON story_sessions
 CREATE POLICY "Users can update own sessions" ON story_sessions
   FOR UPDATE USING (auth.uid() = user_id);
 
+-- RAG: 세션 내에서 질의 임베딩과 가까운 사건 상위 k개
+CREATE OR REPLACE FUNCTION match_story_events(
+  p_session_id UUID,
+  query_embedding VECTOR(1536),
+  match_count INT DEFAULT 5
+)
+RETURNS TABLE (description TEXT, episode INT, importance FLOAT, similarity FLOAT)
+LANGUAGE sql STABLE AS $$
+  SELECT
+    description,
+    episode,
+    importance,
+    1 - (embedding <=> query_embedding) AS similarity
+  FROM story_events
+  WHERE session_id = p_session_id AND embedding IS NOT NULL
+  ORDER BY embedding <=> query_embedding
+  LIMIT match_count;
+$$;
+
 CREATE POLICY "Users can read own events" ON story_events
   FOR SELECT USING (
     EXISTS (

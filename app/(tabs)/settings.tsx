@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import type { UserProfile } from '@/types';
 import { loadProfile, resetAll } from '@/lib/story-engine';
+import { cancelPremium, purchasePremium, PREMIUM_PRICE_LABEL } from '@/lib/premium';
 import { colors, spacing, typography } from '@/lib/theme';
 
 export default function SettingsScreen() {
@@ -53,18 +54,63 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>구독</Text>
         <View style={styles.card}>
-          <Text style={styles.cardText}>프리미엄 — 월 ₩5,900</Text>
+          <Text style={styles.cardText}>프리미엄 — {PREMIUM_PRICE_LABEL}</Text>
           <Text style={styles.cardMeta}>
-            AI 실시간 생성 · 10화+ · 모험 선택지 · 광고 제거 · 회귀 무제한
+            AI 실시간 생성 · 10화+ · 모험 선택지 · 소설 내보내기 · 광고 제거 · 회귀
+            무제한
           </Text>
-          <Pressable
-            style={styles.premiumButton}
-            onPress={() =>
-              Alert.alert('준비 중', '인앱 결제(RevenueCat)는 7~8주차에 연동됩니다.')
-            }
-          >
-            <Text style={styles.premiumButtonText}>구독하기</Text>
-          </Pressable>
+          {profile?.isPremium ? (
+            <Pressable
+              style={styles.premiumOutlineButton}
+              onPress={() => {
+                Alert.alert('구독 해지', '프리미엄 혜택이 즉시 중단됩니다.', [
+                  { text: '취소', style: 'cancel' },
+                  {
+                    text: '해지',
+                    style: 'destructive',
+                    onPress: () => {
+                      void cancelPremium().then((r) => setProfile(r.profile));
+                    },
+                  },
+                ]);
+              }}
+            >
+              <Text style={styles.premiumOutlineText}>구독 해지</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              style={styles.premiumButton}
+              onPress={() => {
+                if (!profile) {
+                  Alert.alert('알림', '먼저 온보딩에서 회귀를 시작해 주세요.');
+                  return;
+                }
+                Alert.alert(
+                  '프리미엄 구독',
+                  `${PREMIUM_PRICE_LABEL} — 결제를 진행할까요?\n(개발 빌드에서는 모의 결제로 처리됩니다)`,
+                  [
+                    { text: '취소', style: 'cancel' },
+                    {
+                      text: '구독',
+                      onPress: () => {
+                        void purchasePremium().then((r) => {
+                          if (r.success) {
+                            setProfile(r.profile);
+                            Alert.alert(
+                              '✦ 프리미엄 활성화',
+                              'AI 실시간 생성과 모험 선택지가 열렸습니다.',
+                            );
+                          }
+                        });
+                      },
+                    },
+                  ],
+                );
+              }}
+            >
+              <Text style={styles.premiumButtonText}>구독하기</Text>
+            </Pressable>
+          )}
         </View>
       </View>
 
@@ -106,6 +152,15 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   premiumButtonText: { color: '#0A0A0A', fontWeight: '700', fontSize: 15 },
+  premiumOutlineButton: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginTop: spacing.sm,
+  },
+  premiumOutlineText: { color: colors.textMuted, fontWeight: '600', fontSize: 15 },
   dangerCard: { borderColor: colors.danger },
   dangerText: { color: colors.danger, fontSize: 15, fontWeight: '600' },
 });

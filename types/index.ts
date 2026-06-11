@@ -65,12 +65,25 @@ export interface ChoiceRecord {
 
 export type SessionStatus = 'in_progress' | 'completed' | 'abandoned';
 
+/** 'preset': 하드코딩 시나리오 진행 / 'ai': 실시간 생성 (프리미엄) */
+export type SessionMode = 'preset' | 'ai';
+
+/** 현재 화면에 표시할 장면 — 프리셋 노드와 AI 에피소드의 공통 형태 */
+export interface Scene extends Episode {
+  id: string;
+  isEnding: boolean;
+}
+
 export interface StorySession {
   id: string;
   profile: UserProfile;
+  mode: SessionMode;
   presetId: string;
   currentNodeId: string;
   currentEpisode: number;
+  totalEpisodes: number;
+  /** AI 모드에서 생성된 에피소드들 */
+  aiEpisodes: Episode[];
   history: ChoiceRecord[];
   /** 지금까지의 요약 (AI 컨텍스트 관리용) */
   summary: string;

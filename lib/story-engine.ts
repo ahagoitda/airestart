@@ -2,7 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   Choice,
   ChoiceRecord,
-  PresetNode,
+  Episode,
+  Scene,
   StorySession,
   UserProfile,
 } from '@/types';
@@ -15,6 +16,9 @@ const ARCHIVE_KEY = 'regressor:archive';
 
 /** 무료 유저가 사용할 수 있는 회귀 루프 횟수 */
 export const FREE_REGRESSION_LIMIT = 1;
+
+/** 프리미엄(AI 생성) 모드의 회차당 에피소드 수 */
+export const AI_TOTAL_EPISODES = 10;
 
 function makeId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -39,9 +43,12 @@ export async function startSession(profile: UserProfile): Promise<StorySession> 
   const session: StorySession = {
     id: makeId(),
     profile,
+    mode: profile.isPremium ? 'ai' : 'preset',
     presetId: preset.id,
     currentNodeId: preset.startNodeId,
     currentEpisode: 1,
+    totalEpisodes: profile.isPremium ? AI_TOTAL_EPISODES : preset.totalEpisodes,
+    aiEpisodes: [],
     history: [],
     summary: '',
     isPremium: profile.isPremium,
@@ -56,7 +63,17 @@ export async function startSession(profile: UserProfile): Promise<StorySession> 
 
 export async function loadSession(): Promise<StorySession | null> {
   const raw = await AsyncStorage.getItem(SESSION_KEY);
-  return raw ? (JSON.parse(raw) as StorySession) : null;
+  if (!raw) return null;
+  const session = JSON.parse(raw) as StorySession;
+  // 구버전 저장 데이터 마이그레이션
+  session.mode ??= 'preset';
+  session.aiEpisodes ??= [];
+  session.totalEpisodes ??= getPreset(session.presetId).totalEpisodes;
+  return session;
+}
+
+export async function persistSession(session: StorySession): Promise<void> {
+  await persist(session);
 }
 
 async function persist(session: StorySession): Promise<void> {
@@ -66,39 +83,83 @@ async function persist(session: StorySession): Promise<void> {
   syncSession(session);
 }
 
-export function getCurrentNode(session: StorySession): PresetNode {
+/** 현재 표시할 장면 — 프리셋 노드 또는 마지막 AI 에피소드 */
+export function getCurrentScene(session: StorySession): Scene | null {
+  if (session.mode === 'ai') {
+    const episode = session.aiEpisodes.at(-1);
+    if (!episode) return null; // 아직 생성 전 — 호출 측에서 generateEpisode
+    return {
+      ...episode,
+      id: `ai-${episode.episodeNumber}`,
+      isEnding: episode.episodeNumber >= session.totalEpisodes,
+    };
+  }
   const preset = getPreset(session.presetId);
-  return preset.nodes[session.currentNodeId] ?? preset.nodes[preset.startNodeId];
+  const node = preset.nodes[session.currentNodeId] ?? preset.nodes[preset.startNodeId];
+  return node;
 }
 
-/** 선택지를 적용하고 다음 노드로 진행한 세션을 반환 */
-export async function applyChoice(
+function makeRecord(scene: Scene, choice: Choice): ChoiceRecord {
+  return {
+    nodeId: scene.id,
+    choiceId: choice.id,
+    choiceText: choice.text,
+    episodeNumber: scene.episodeNumber,
+  };
+}
+
+/** 프리셋 모드: 선택지를 적용하고 다음 노드로 진행 */
+export async function applyPresetChoice(
   session: StorySession,
   choice: Choice,
 ): Promise<StorySession> {
   if (choice.isPremium && !session.isPremium) {
     throw new Error('프리미엄 전용 선택지입니다.');
   }
-  const node = getCurrentNode(session);
-  const record: ChoiceRecord = {
-    nodeId: node.id,
-    choiceId: choice.id,
-    choiceText: choice.text,
-    episodeNumber: node.episodeNumber,
-  };
+  const scene = getCurrentScene(session);
+  if (!scene) throw new Error('현재 장면이 없습니다.');
   const nextNodeId = choice.nextNodeId;
   if (!nextNodeId) {
     throw new Error('다음 장면이 없는 선택지입니다.');
   }
   const preset = getPreset(session.presetId);
   const nextNode = preset.nodes[nextNodeId];
+  const history = [...session.history, makeRecord(scene, choice)];
   const updated: StorySession = {
     ...session,
     currentNodeId: nextNodeId,
     currentEpisode: nextNode?.episodeNumber ?? session.currentEpisode,
-    history: [...session.history, record],
-    summary: buildSummary([...session.history, record]),
+    history,
+    summary: buildSummary(history),
     status: nextNode?.isEnding ? 'completed' : 'in_progress',
+  };
+  await persist(updated);
+  return updated;
+}
+
+/**
+ * AI 모드: 선택을 기록하고 새로 생성된 에피소드를 덧붙인다.
+ * choice가 null이면 첫 에피소드(선택 없이 시작).
+ * 프리셋 진행 중 프리미엄(모험) 선택지를 고르면 이 함수로 AI 모드로 전환된다.
+ */
+export async function applyAiEpisode(
+  session: StorySession,
+  choice: Choice | null,
+  episode: Episode,
+): Promise<StorySession> {
+  const scene = getCurrentScene(session);
+  const history =
+    choice && scene ? [...session.history, makeRecord(scene, choice)] : session.history;
+  const totalEpisodes = Math.max(session.totalEpisodes, AI_TOTAL_EPISODES);
+  const updated: StorySession = {
+    ...session,
+    mode: 'ai',
+    totalEpisodes,
+    aiEpisodes: [...session.aiEpisodes, episode],
+    currentEpisode: episode.episodeNumber,
+    history,
+    summary: buildSummary(history),
+    status: episode.episodeNumber >= totalEpisodes ? 'completed' : 'in_progress',
   };
   await persist(updated);
   return updated;
@@ -113,8 +174,11 @@ export async function regress(session: StorySession): Promise<StorySession> {
   const preset = getPreset(session.presetId);
   const updated: StorySession = {
     ...session,
+    mode: session.isPremium ? 'ai' : 'preset',
     currentNodeId: preset.startNodeId,
     currentEpisode: 1,
+    totalEpisodes: session.isPremium ? AI_TOTAL_EPISODES : preset.totalEpisodes,
+    aiEpisodes: [],
     history: [],
     summary: '',
     regressionCount: session.regressionCount + 1,
@@ -148,9 +212,10 @@ export async function loadArchive(): Promise<ArchiveEntry[]> {
 
 async function archiveSession(session: StorySession): Promise<void> {
   const preset = getPreset(session.presetId);
+  const title = session.mode === 'ai' ? 'AI 회귀록' : preset.title;
   const entry: ArchiveEntry = {
     id: `${session.id}-${session.regressionCount}`,
-    title: `${preset.title} (${session.regressionCount + 1}회차)`,
+    title: `${title} (${session.regressionCount + 1}회차)`,
     endedAt: new Date().toISOString(),
     episodeReached: session.currentEpisode,
     regressionCount: session.regressionCount,
