@@ -5,14 +5,8 @@ import { useFocusEffect } from 'expo-router';
 import type { UserProfile } from '@/types';
 import { loadProfile, resetAll } from '@/lib/story-engine';
 import { cancelPremium, purchasePremium, PREMIUM_PRICE_LABEL } from '@/lib/premium';
+import { STYLE_LABELS } from '@/lib/styles';
 import { colors, spacing, typography } from '@/lib/theme';
-
-const STYLE_LABELS: Record<string, string> = {
-  kr_webnovel: '한국 웹소설식',
-  novelpia: '노벨피아식',
-  light_novel: '라노벨식',
-  us_hero: '미국 히어로식',
-};
 
 export default function SettingsScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(null);

@@ -19,12 +19,9 @@ export type ReturnEra = 'middle_school' | 'high_school' | 'college' | 'early_car
 
 /**
  * 문체 카테고리 — AI 생성 시 작풍을 결정한다.
- * kr_webnovel: 한국 웹소설식 (카카오페이지 정통 회귀물)
- * novelpia: 노벨피아식 (빠른 사이다 전개)
- * light_novel: 라노벨식 (일본 라이트노벨 감성)
- * us_hero: 미국 히어로식 (마블 스타일)
+ * 전체 카탈로그(80종)는 lib/styles.ts, 작풍 가이드는 server/lib/styles.ts 참조.
  */
-export type StoryStyle = 'kr_webnovel' | 'novelpia' | 'light_novel' | 'us_hero';
+export type StoryStyle = string;
 
 export interface UserProfile {
   id: string;

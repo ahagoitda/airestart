@@ -1,5 +1,7 @@
 // 시스템 프롬프트 조립 — 빌드 스펙의 템플릿 그대로 구현
 
+import { DEFAULT_STYLE, STYLE_GUIDES } from './styles.js';
+
 export interface GenerateRequest {
   sessionId: string;
   profile: {
@@ -39,39 +41,6 @@ const ERA_LABELS: Record<string, string> = {
   early_career: '첫 직장 입사 전',
 };
 
-// 문체 카테고리별 작풍 가이드
-const STYLE_GUIDES: Record<string, { label: string; guide: string }> = {
-  kr_webnovel: {
-    label: '한국 웹소설식 (카카오페이지 정통 회귀물)',
-    guide: `- 간결한 단문 위주, 줄바꿈을 자주 사용해 호흡을 빠르게
-- 주인공의 묵직한 내적 독백과 전생 회상을 교차
-- 에피소드 말미는 다음 화가 궁금해지는 절단신공으로 마무리
-- 성장과 복선 회수의 쾌감을 중시`,
-  },
-  novelpia: {
-    label: '노벨피아식 (빠른 사이다 전개)',
-    guide: `- 극단적으로 빠른 템포, 사이다 전개 — 답답한 구간을 만들지 않는다
-- 짧은 문장과 잦은 줄바꿈, 한 줄짜리 임팩트 문장 활용
-- 통쾌한 반전과 응징, 가벼운 유머를 곁들일 것
-- 설명은 최소화하고 사건으로 보여준다`,
-  },
-  light_novel: {
-    label: '라노벨식 (일본 라이트노벨 감성)',
-    guide: `- 1인칭 구어체 독백, 자조 섞인 츳코미와 가벼운 개그
-- 대사 비중을 높게 (전체의 절반 이상), 캐릭터 간 티키타카 중시
-- 일상 묘사와 감정 변화를 아기자기하게
-- 무거운 장면도 특유의 경쾌함을 잃지 않는다`,
-  },
-  us_hero: {
-    label: '미국 히어로식 (마블 시네마틱 스타일)',
-    guide: `- 위기 속에서도 던지는 위트 있는 농담과 자기풍자 (쿼터백 조크)
-- 시네마틱한 장면 전환과 스케일 큰 액션·연출 묘사
-- 주인공의 능력(전생의 기억)을 히어로의 파워처럼 연출
-- 클라이맥스 직전의 정적, 그리고 폭발적인 한 방`,
-  },
-};
-
-const DEFAULT_STYLE = 'kr_webnovel';
 
 export function buildSystemPrompt(req: GenerateRequest, ragResults: string): string {
   const { profile } = req;

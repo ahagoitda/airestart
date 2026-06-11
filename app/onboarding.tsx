@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import type { PersonaType, RegretType, ReturnEra, StoryStyle, UserProfile } from '@/types';
+import { DEFAULT_STYLE, STYLE_GROUPS } from '@/lib/styles';
 import { saveProfile, startSession } from '@/lib/story-engine';
 import { colors, spacing, typography } from '@/lib/theme';
 
@@ -39,29 +40,6 @@ const ERAS: { value: ReturnEra; label: string }[] = [
   { value: 'high_school', label: '고등학교 시절' },
   { value: 'college', label: '대학교 입학 전' },
   { value: 'early_career', label: '첫 직장 입사 전' },
-];
-
-const STYLES: { value: StoryStyle; label: string; description: string }[] = [
-  {
-    value: 'kr_webnovel',
-    label: '한국 웹소설식',
-    description: '정통 회귀물 — 묵직한 독백과 절단신공',
-  },
-  {
-    value: 'novelpia',
-    label: '노벨피아식',
-    description: '사이다 폭주 — 빠른 전개, 시원한 응징',
-  },
-  {
-    value: 'light_novel',
-    label: '라노벨식',
-    description: '가볍고 유쾌하게 — 대사와 츳코미 중심',
-  },
-  {
-    value: 'us_hero',
-    label: '미국 히어로식',
-    description: '시네마틱 액션 — 위트 있는 농담과 스케일',
-  },
 ];
 
 const STEPS = [
@@ -108,7 +86,7 @@ export default function OnboardingScreen() {
   const [persona, setPersona] = useState<PersonaType>('office_worker');
   const [regret, setRegret] = useState<RegretType>('first_love');
   const [era, setEra] = useState<ReturnEra>('high_school');
-  const [style, setStyle] = useState<StoryStyle>('kr_webnovel');
+  const [style, setStyle] = useState<StoryStyle>(DEFAULT_STYLE);
   const [name, setName] = useState('');
   const [starting, setStarting] = useState(false);
 
@@ -178,14 +156,21 @@ export default function OnboardingScreen() {
               />
             ))}
           {step === 3 &&
-            STYLES.map((s) => (
-              <OptionRow
-                key={s.value}
-                label={s.label}
-                description={s.description}
-                selected={style === s.value}
-                onPress={() => setStyle(s.value)}
-              />
+            STYLE_GROUPS.map((group) => (
+              <View key={group.group}>
+                <Text style={styles.groupHeader}>{group.group}</Text>
+                <View style={styles.groupOptions}>
+                  {group.styles.map((s) => (
+                    <OptionRow
+                      key={s.value}
+                      label={s.label}
+                      description={s.description}
+                      selected={style === s.value}
+                      onPress={() => setStyle(s.value)}
+                    />
+                  ))}
+                </View>
+              </View>
             ))}
           {step === 4 && (
             <>
@@ -236,6 +221,14 @@ const styles = StyleSheet.create({
   question: { ...typography.title, marginBottom: spacing.lg },
   optionsScroll: { flex: 1 },
   options: { gap: spacing.sm, paddingBottom: spacing.md },
+  groupHeader: {
+    color: colors.gold,
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  groupOptions: { gap: spacing.sm },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
