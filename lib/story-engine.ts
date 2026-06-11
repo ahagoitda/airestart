@@ -6,7 +6,7 @@ import type {
   StorySession,
   UserProfile,
 } from '@/types';
-import { DEFAULT_PRESET_ID, getPreset } from '@/lib/presets';
+import { getPreset, pickPreset } from '@/lib/presets';
 import { syncSession } from '@/lib/supabase';
 
 const PROFILE_KEY = 'regressor:profile';
@@ -34,7 +34,7 @@ export async function loadProfile(): Promise<UserProfile | null> {
 // ---------- 세션 ----------
 
 export async function startSession(profile: UserProfile): Promise<StorySession> {
-  const preset = getPreset(DEFAULT_PRESET_ID);
+  const preset = pickPreset(profile);
   const now = new Date().toISOString();
   const session: StorySession = {
     id: makeId(),
