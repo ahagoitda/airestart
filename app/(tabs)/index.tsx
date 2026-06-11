@@ -1,10 +1,11 @@
 import { useCallback, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import type { StorySession, UserProfile } from '@/types';
 import { loadProfile, loadSession } from '@/lib/story-engine';
 import { getPreset } from '@/lib/presets';
+import { HeroEmblem } from '@/components/illustrations';
 import { colors, spacing, typography } from '@/lib/theme';
 
 export default function HomeScreen() {
@@ -27,15 +28,25 @@ export default function HomeScreen() {
     }, []),
   );
 
-  const startNew = () => router.push('/onboarding');
-  const resume = () => router.push('/play');
-
   const canResume = session && session.status === 'in_progress';
+
+  const startNew = () => {
+    if (canResume) {
+      // 진행 중인 회차를 덮어쓰기 전에 확인
+      Alert.alert('새 회귀 시작', '진행 중인 회차가 있습니다. 새로 시작할까요?', [
+        { text: '취소', style: 'cancel' },
+        { text: '새로 시작', style: 'destructive', onPress: () => router.push('/onboarding') },
+      ]);
+      return;
+    }
+    router.push('/onboarding');
+  };
+  const resume = () => router.push('/play');
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.hero}>
-        <Text style={styles.logo}>回</Text>
+        <HeroEmblem size={130} />
         <Text style={styles.title}>Regressor</Text>
         <Text style={styles.tagline}>
           {profile
@@ -77,7 +88,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   hero: { alignItems: 'center', marginTop: '25%' },
-  logo: { fontSize: 72, color: colors.gold, fontWeight: '300' },
   title: { ...typography.title, fontSize: 32, marginTop: spacing.md },
   tagline: { ...typography.subtitle, marginTop: spacing.sm, textAlign: 'center' },
   actions: { gap: spacing.sm, marginBottom: spacing.lg },

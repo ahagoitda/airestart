@@ -7,6 +7,13 @@ import { loadProfile, resetAll } from '@/lib/story-engine';
 import { cancelPremium, purchasePremium, PREMIUM_PRICE_LABEL } from '@/lib/premium';
 import { colors, spacing, typography } from '@/lib/theme';
 
+const STYLE_LABELS: Record<string, string> = {
+  kr_webnovel: '한국 웹소설식',
+  novelpia: '노벨피아식',
+  light_novel: '라노벨식',
+  us_hero: '미국 히어로식',
+};
+
 export default function SettingsScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
@@ -47,6 +54,7 @@ export default function SettingsScreen() {
           </Text>
           <Text style={styles.cardMeta}>
             {profile?.isPremium ? '프리미엄 회귀자 ✦' : '무료 플랜'}
+            {profile ? ` · ${STYLE_LABELS[profile.style] ?? '한국 웹소설식'}` : ''}
           </Text>
         </View>
       </View>

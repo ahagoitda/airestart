@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -20,6 +20,7 @@ import SceneTransition from '@/components/SceneTransition';
 import LoadingIndicator from '@/components/LoadingIndicator';
 import EpisodeIndicator from '@/components/EpisodeIndicator';
 import AdBanner from '@/components/AdBanner';
+import { ScenarioCover } from '@/components/illustrations';
 import { colors, spacing } from '@/lib/theme';
 
 export default function PlayScreen() {
@@ -27,6 +28,8 @@ export default function PlayScreen() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [typingDone, setTypingDone] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const sceneIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -105,6 +108,12 @@ export default function PlayScreen() {
 
   const content = personalize(scene.content, session.profile.name);
 
+  // 새 장면 진입 시 맨 위로
+  if (sceneIdRef.current !== scene.id) {
+    sceneIdRef.current = scene.id;
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 0, animated: false }));
+  }
+
   const onChoice = async (choice: Choice) => {
     if (choice.isPremium && !session.isPremium) {
       Alert.alert(
@@ -167,12 +176,21 @@ export default function PlayScreen() {
         </Text>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        ref={scrollRef}
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        onContentSizeChange={() => {
+          // 선택지가 나타나면 보이도록 끝까지 스크롤
+          if (typingDone) scrollRef.current?.scrollToEnd({ animated: true });
+        }}
+      >
         <SceneTransition sceneKey={scene.id}>
           <TypewriterText
             key={scene.id}
             text={content}
             onComplete={() => setTypingDone(true)}
+            onProgress={() => scrollRef.current?.scrollToEnd({ animated: false })}
           />
         </SceneTransition>
 
@@ -191,6 +209,13 @@ export default function PlayScreen() {
 
         {typingDone && scene.isEnding && (
           <View style={styles.choices}>
+            <View style={styles.endingArt}>
+              <ScenarioCover
+                presetId={session.presetId}
+                mode={session.mode}
+                size={96}
+              />
+            </View>
             <Pressable style={styles.regressButton} onPress={() => void onRegress()}>
               <Text style={styles.regressText}>⟲ 다시 회귀하기</Text>
               <Text style={styles.regressSub}>
@@ -234,6 +259,7 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.lg, paddingBottom: spacing.xl },
   choices: { marginTop: spacing.xl },
+  endingArt: { alignItems: 'center', marginBottom: spacing.lg },
   regressButton: {
     backgroundColor: colors.gold,
     borderRadius: 12,

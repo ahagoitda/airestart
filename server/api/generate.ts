@@ -90,7 +90,8 @@ export default async function handler(request: Request): Promise<Response> {
       ],
       response_format: { type: 'json_schema', json_schema: episodeJsonSchema },
       temperature: 0.9,
-      max_tokens: 1500,
+      // 본문 700~1,200자 + 선택지 3개가 잘리지 않도록 여유 확보
+      max_tokens: 3000,
     }),
   });
 

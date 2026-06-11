@@ -3,6 +3,7 @@ import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { loadArchive, type ArchiveEntry } from '@/lib/story-engine';
+import { ScenarioCover } from '@/components/illustrations';
 import { colors, spacing, typography } from '@/lib/theme';
 
 export default function LibraryScreen() {
@@ -35,16 +36,23 @@ export default function LibraryScreen() {
         }
         renderItem={({ item }) => (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>{item.title}</Text>
-            <Text style={styles.cardMeta}>
-              {item.episodeReached}화 도달 ·{' '}
-              {new Date(item.endedAt).toLocaleDateString('ko-KR')}
-            </Text>
-            {item.choices.length > 0 && (
-              <Text style={styles.cardChoices} numberOfLines={2}>
-                선택: {item.choices.join(' → ')}
+            <ScenarioCover
+              presetId={item.presetId ?? ''}
+              mode={item.mode ?? 'preset'}
+              size={56}
+            />
+            <View style={styles.cardBody}>
+              <Text style={styles.cardTitle}>{item.title}</Text>
+              <Text style={styles.cardMeta}>
+                {item.episodeReached}화 도달 ·{' '}
+                {new Date(item.endedAt).toLocaleDateString('ko-KR')}
               </Text>
-            )}
+              {item.choices.length > 0 && (
+                <Text style={styles.cardChoices} numberOfLines={2}>
+                  선택: {item.choices.join(' → ')}
+                </Text>
+              )}
+            </View>
           </View>
         )}
       />
@@ -64,13 +72,16 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   card: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 10,
     padding: spacing.md,
-    gap: spacing.xs,
+    gap: spacing.md,
   },
+  cardBody: { flex: 1, gap: spacing.xs },
   cardTitle: { color: colors.text, fontSize: 16, fontWeight: '600' },
   cardMeta: { color: colors.textFaint, fontSize: 12 },
   cardChoices: { color: colors.textMuted, fontSize: 13, lineHeight: 18 },

@@ -7,6 +7,8 @@ export interface GenerateRequest {
     persona: string;
     regret: string;
     returnEra: string;
+    /** 문체 카테고리 — 미지정 시 한국 웹소설식 */
+    style?: string;
   };
   currentEpisode: number;
   summary: string;
@@ -37,8 +39,43 @@ const ERA_LABELS: Record<string, string> = {
   early_career: '첫 직장 입사 전',
 };
 
+// 문체 카테고리별 작풍 가이드
+const STYLE_GUIDES: Record<string, { label: string; guide: string }> = {
+  kr_webnovel: {
+    label: '한국 웹소설식 (카카오페이지 정통 회귀물)',
+    guide: `- 간결한 단문 위주, 줄바꿈을 자주 사용해 호흡을 빠르게
+- 주인공의 묵직한 내적 독백과 전생 회상을 교차
+- 에피소드 말미는 다음 화가 궁금해지는 절단신공으로 마무리
+- 성장과 복선 회수의 쾌감을 중시`,
+  },
+  novelpia: {
+    label: '노벨피아식 (빠른 사이다 전개)',
+    guide: `- 극단적으로 빠른 템포, 사이다 전개 — 답답한 구간을 만들지 않는다
+- 짧은 문장과 잦은 줄바꿈, 한 줄짜리 임팩트 문장 활용
+- 통쾌한 반전과 응징, 가벼운 유머를 곁들일 것
+- 설명은 최소화하고 사건으로 보여준다`,
+  },
+  light_novel: {
+    label: '라노벨식 (일본 라이트노벨 감성)',
+    guide: `- 1인칭 구어체 독백, 자조 섞인 츳코미와 가벼운 개그
+- 대사 비중을 높게 (전체의 절반 이상), 캐릭터 간 티키타카 중시
+- 일상 묘사와 감정 변화를 아기자기하게
+- 무거운 장면도 특유의 경쾌함을 잃지 않는다`,
+  },
+  us_hero: {
+    label: '미국 히어로식 (마블 시네마틱 스타일)',
+    guide: `- 위기 속에서도 던지는 위트 있는 농담과 자기풍자 (쿼터백 조크)
+- 시네마틱한 장면 전환과 스케일 큰 액션·연출 묘사
+- 주인공의 능력(전생의 기억)을 히어로의 파워처럼 연출
+- 클라이맥스 직전의 정적, 그리고 폭발적인 한 방`,
+  },
+};
+
+const DEFAULT_STYLE = 'kr_webnovel';
+
 export function buildSystemPrompt(req: GenerateRequest, ragResults: string): string {
   const { profile } = req;
+  const style = STYLE_GUIDES[profile.style ?? DEFAULT_STYLE] ?? STYLE_GUIDES[DEFAULT_STYLE];
   return `당신은 인생 회귀물(回帰物) 웹소설 작가입니다.
 다음 설정으로 이야기를 써주세요:
 
@@ -48,14 +85,21 @@ export function buildSystemPrompt(req: GenerateRequest, ragResults: string): str
 - 후회: ${REGRET_LABELS[profile.regret] ?? profile.regret}
 - 돌아간 시대: ${ERA_LABELS[profile.returnEra] ?? profile.returnEra}
 
+[문체] ${style.label}
+${style.guide}
+
 [작가 규칙]
-1. 한국 정서에 맞는 대사와 묘사
+1. 한국 정서에 맞는 대사와 묘사 (단, 문체 가이드가 우선)
 2. 전생의 기억을 활용한 전개
 3. 선택지마다 다른 결말로 이어질 것
 4. 클리셰 과다 사용 금지
 5. 매 에피소드 말미에 반드시 3개의 선택지 제시
 6. 3개의 선택지는 자유 선택 / 신중 선택 / 모험 선택 구조
 7. 선택지 마지막 하나는 프리미엄(🔒) 표시
+
+[분량]
+- 본문은 공백 포함 700~1,000자 — 장면 하나를 충분히 그리되 늘어지지 않게
+- 클라이맥스 에피소드(분기 합류·최종화 직전)는 1,200자까지 허용
 
 [지금까지의 요약]
 ${req.summary || '(없음 — 첫 에피소드)'}
@@ -66,7 +110,7 @@ ${ragResults || '(없음)'}
 [이번 에피소드] ${req.currentEpisode}화
 [사용자 선택] ${req.lastChoice ?? '(없음 — 첫 에피소드)'}
 
-위 설정으로 ${req.currentEpisode}화를 500자 분량으로 작성하고,
+위 설정과 분량 기준으로 ${req.currentEpisode}화를 작성하고,
 마지막에 선택지 3개를 제시해주세요.`;
 }
 
@@ -81,7 +125,7 @@ export const episodeJsonSchema = {
     properties: {
       episodeNumber: { type: 'integer' },
       title: { type: 'string', description: '에피소드 제목' },
-      content: { type: 'string', description: '스토리 본문 (500자 내외)' },
+      content: { type: 'string', description: '스토리 본문 (공백 포함 700~1,000자)' },
       choices: {
         type: 'array',
         minItems: 3,

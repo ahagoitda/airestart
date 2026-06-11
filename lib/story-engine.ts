@@ -32,7 +32,11 @@ export async function saveProfile(profile: UserProfile): Promise<void> {
 
 export async function loadProfile(): Promise<UserProfile | null> {
   const raw = await AsyncStorage.getItem(PROFILE_KEY);
-  return raw ? (JSON.parse(raw) as UserProfile) : null;
+  if (!raw) return null;
+  const profile = JSON.parse(raw) as UserProfile;
+  // 구버전 저장 데이터 마이그레이션
+  profile.style ??= 'kr_webnovel';
+  return profile;
 }
 
 // ---------- 세션 ----------
@@ -69,6 +73,7 @@ export async function loadSession(): Promise<StorySession | null> {
   session.mode ??= 'preset';
   session.aiEpisodes ??= [];
   session.totalEpisodes ??= getPreset(session.presetId).totalEpisodes;
+  session.profile.style ??= 'kr_webnovel';
   return session;
 }
 
@@ -198,6 +203,8 @@ export async function endSession(session: StorySession): Promise<void> {
 export interface ArchiveEntry {
   id: string;
   title: string;
+  presetId: string;
+  mode: StorySession['mode'];
   endedAt: string;
   episodeReached: number;
   regressionCount: number;
@@ -216,6 +223,8 @@ async function archiveSession(session: StorySession): Promise<void> {
   const entry: ArchiveEntry = {
     id: `${session.id}-${session.regressionCount}`,
     title: `${title} (${session.regressionCount + 1}회차)`,
+    presetId: session.presetId,
+    mode: session.mode,
     endedAt: new Date().toISOString(),
     episodeReached: session.currentEpisode,
     regressionCount: session.regressionCount,

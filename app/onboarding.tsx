@@ -3,6 +3,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -10,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import type { PersonaType, RegretType, ReturnEra, UserProfile } from '@/types';
+import type { PersonaType, RegretType, ReturnEra, StoryStyle, UserProfile } from '@/types';
 import { saveProfile, startSession } from '@/lib/story-engine';
 import { colors, spacing, typography } from '@/lib/theme';
 
@@ -40,14 +41,45 @@ const ERAS: { value: ReturnEra; label: string }[] = [
   { value: 'early_career', label: '첫 직장 입사 전' },
 ];
 
-const STEPS = ['당신은 어떤 사람인가요?', '당신의 가장 큰 후회는?', '돌아가고 싶은 때는?', '당신의 이름은?'];
+const STYLES: { value: StoryStyle; label: string; description: string }[] = [
+  {
+    value: 'kr_webnovel',
+    label: '한국 웹소설식',
+    description: '정통 회귀물 — 묵직한 독백과 절단신공',
+  },
+  {
+    value: 'novelpia',
+    label: '노벨피아식',
+    description: '사이다 폭주 — 빠른 전개, 시원한 응징',
+  },
+  {
+    value: 'light_novel',
+    label: '라노벨식',
+    description: '가볍고 유쾌하게 — 대사와 츳코미 중심',
+  },
+  {
+    value: 'us_hero',
+    label: '미국 히어로식',
+    description: '시네마틱 액션 — 위트 있는 농담과 스케일',
+  },
+];
+
+const STEPS = [
+  '당신은 어떤 사람인가요?',
+  '당신의 가장 큰 후회는?',
+  '돌아가고 싶은 때는?',
+  '어떤 스타일로 읽을까요?',
+  '당신의 이름은?',
+];
 
 function OptionRow({
   label,
+  description,
   selected,
   onPress,
 }: {
   label: string;
+  description?: string;
   selected: boolean;
   onPress: () => void;
 }) {
@@ -61,9 +93,12 @@ function OptionRow({
       <Text style={[styles.radio, selected && styles.radioSelected]}>
         {selected ? '●' : '○'}
       </Text>
-      <Text style={[styles.optionText, selected && styles.optionTextSelected]}>
-        {label}
-      </Text>
+      <View style={styles.optionBody}>
+        <Text style={[styles.optionText, selected && styles.optionTextSelected]}>
+          {label}
+        </Text>
+        {description && <Text style={styles.optionDesc}>{description}</Text>}
+      </View>
     </Pressable>
   );
 }
@@ -73,6 +108,7 @@ export default function OnboardingScreen() {
   const [persona, setPersona] = useState<PersonaType>('office_worker');
   const [regret, setRegret] = useState<RegretType>('first_love');
   const [era, setEra] = useState<ReturnEra>('high_school');
+  const [style, setStyle] = useState<StoryStyle>('kr_webnovel');
   const [name, setName] = useState('');
   const [starting, setStarting] = useState(false);
 
@@ -90,6 +126,7 @@ export default function OnboardingScreen() {
       persona,
       regret,
       returnEra: era,
+      style,
       name: name.trim() || '회귀자',
       isPremium: false,
     };
@@ -112,7 +149,7 @@ export default function OnboardingScreen() {
 
         <Text style={styles.question}>{STEPS[step]}</Text>
 
-        <View style={styles.options}>
+        <ScrollView style={styles.optionsScroll} contentContainerStyle={styles.options}>
           {step === 0 &&
             PERSONAS.map((p) => (
               <OptionRow
@@ -140,7 +177,17 @@ export default function OnboardingScreen() {
                 onPress={() => setEra(e.value)}
               />
             ))}
-          {step === 3 && (
+          {step === 3 &&
+            STYLES.map((s) => (
+              <OptionRow
+                key={s.value}
+                label={s.label}
+                description={s.description}
+                selected={style === s.value}
+                onPress={() => setStyle(s.value)}
+              />
+            ))}
+          {step === 4 && (
             <>
               <TextInput
                 style={styles.input}
@@ -154,7 +201,7 @@ export default function OnboardingScreen() {
               <Text style={styles.hint}>비워두면 '회귀자'로 불립니다</Text>
             </>
           )}
-        </View>
+        </ScrollView>
 
         <View style={styles.footer}>
           {step > 0 && (
@@ -187,7 +234,8 @@ const styles = StyleSheet.create({
   dot: { width: 28, height: 3, borderRadius: 2, backgroundColor: colors.border },
   dotActive: { backgroundColor: colors.gold },
   question: { ...typography.title, marginBottom: spacing.lg },
-  options: { flex: 1, gap: spacing.sm },
+  optionsScroll: { flex: 1 },
+  options: { gap: spacing.sm, paddingBottom: spacing.md },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -202,8 +250,10 @@ const styles = StyleSheet.create({
   optionSelected: { borderColor: colors.gold, backgroundColor: colors.surfaceRaised },
   radio: { color: colors.textFaint, fontSize: 14 },
   radioSelected: { color: colors.gold },
-  optionText: { color: colors.textMuted, fontSize: 16, flex: 1 },
+  optionBody: { flex: 1, gap: 2 },
+  optionText: { color: colors.textMuted, fontSize: 16 },
   optionTextSelected: { color: colors.text },
+  optionDesc: { color: colors.textFaint, fontSize: 12 },
   input: {
     backgroundColor: colors.surface,
     borderWidth: 1,
