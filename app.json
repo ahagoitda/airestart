@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "Regressor",
+    "slug": "regressor",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "regressor",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0A0A0A",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.regressor.app"
+    },
+    "android": {
+      "package": "com.regressor.app",
+      "edgeToEdgeEnabled": true
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
