@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import type { Choice, StorySession } from '@/types';
+import type { Choice, MemoryGrant, StorySession } from '@/types';
 import {
   applyAiEpisode,
   applyPresetChoice,
   getCurrentScene,
+  loadMemories,
   loadSession,
   regress,
   FREE_REGRESSION_LIMIT,
@@ -28,8 +29,15 @@ export default function PlayScreen() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [typingDone, setTypingDone] = useState(false);
+  const [memories, setMemories] = useState<MemoryGrant[]>([]);
   const scrollRef = useRef<ScrollView>(null);
   const sceneIdRef = useRef<string | null>(null);
+
+  // 회귀의 기억은 엔딩 도달 시 갱신될 수 있으므로 세션이 바뀔 때마다 다시 읽는다
+  useEffect(() => {
+    if (!session) return;
+    void loadMemories(session.presetId).then(setMemories);
+  }, [session]);
 
   useEffect(() => {
     void (async () => {
@@ -114,7 +122,17 @@ export default function PlayScreen() {
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 0, animated: false }));
   }
 
+  const hasMemory = (id: string) => memories.some((m) => m.id === id);
+
   const onChoice = async (choice: Choice) => {
+    if (choice.requiresMemoryId && !hasMemory(choice.requiresMemoryId)) {
+      Alert.alert(
+        '⟲ 잠긴 갈림길',
+        '이 선택지는 다른 결말이 남긴 "회귀의 기억"이 있어야 열립니다.\n다른 길을 끝까지 가보세요 — 실패도 기억이 됩니다.',
+        [{ text: '확인' }],
+      );
+      return;
+    }
     if (choice.isPremium && !session.isPremium) {
       Alert.alert(
         '🔒 프리미엄 선택지',
@@ -201,6 +219,13 @@ export default function PlayScreen() {
                 key={choice.id}
                 choice={choice}
                 isPremiumUser={session.isPremium}
+                memoryState={
+                  choice.requiresMemoryId
+                    ? hasMemory(choice.requiresMemoryId)
+                      ? 'unlocked'
+                      : 'locked'
+                    : null
+                }
                 onPress={(c) => void onChoice(c)}
               />
             ))}
@@ -215,11 +240,39 @@ export default function PlayScreen() {
                 mode={session.mode}
                 size={96}
               />
+              <Text
+                style={[
+                  styles.endingBadge,
+                  scene.endingType === 'bad' && styles.endingBadgeBad,
+                  scene.endingType === 'true' && styles.endingBadgeTrue,
+                ]}
+              >
+                {scene.endingType === 'bad'
+                  ? '■ 배드 엔딩'
+                  : scene.endingType === 'true'
+                    ? '✦ 진 엔딩'
+                    : '● 엔딩'}{' '}
+                — {scene.title}
+              </Text>
             </View>
+            {scene.grantsMemory && (
+              <View style={styles.memoryBox}>
+                <Text style={styles.memoryBoxLabel}>⟲ 회귀의 기억 획득</Text>
+                <Text style={styles.memoryBoxText}>{scene.grantsMemory.label}</Text>
+                <Text style={styles.memoryBoxHint}>
+                  다음 회차에서 새로운 갈림길이 열립니다
+                </Text>
+              </View>
+            )}
             <Pressable style={styles.regressButton} onPress={() => void onRegress()}>
-              <Text style={styles.regressText}>⟲ 다시 회귀하기</Text>
+              <Text style={styles.regressText}>
+                ⟲ {scene.endingType === 'bad' ? '기억을 안고 다시 회귀하기' : '다시 회귀하기'}
+              </Text>
               <Text style={styles.regressSub}>
-                {session.regressionCount + 1}회차 종료 — 다른 선택, 다른 운명
+                {session.regressionCount + 1}회차 종료 —{' '}
+                {scene.endingType === 'bad'
+                  ? '만회의 회귀는 무료입니다'
+                  : '다른 선택, 다른 운명'}
               </Text>
             </Pressable>
             <Pressable style={styles.exportButton} onPress={() => void onExport()}>
@@ -259,7 +312,22 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.lg, paddingBottom: spacing.xl },
   choices: { marginTop: spacing.xl },
-  endingArt: { alignItems: 'center', marginBottom: spacing.lg },
+  endingArt: { alignItems: 'center', marginBottom: spacing.lg, gap: spacing.sm },
+  endingBadge: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },
+  endingBadgeBad: { color: colors.danger },
+  endingBadgeTrue: { color: colors.gold },
+  memoryBox: {
+    borderWidth: 1,
+    borderColor: colors.goldDim,
+    borderRadius: 10,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    gap: spacing.xs,
+    backgroundColor: colors.surface,
+  },
+  memoryBoxLabel: { color: colors.gold, fontSize: 13, fontWeight: '700' },
+  memoryBoxText: { color: colors.text, fontSize: 15, lineHeight: 22 },
+  memoryBoxHint: { color: colors.textFaint, fontSize: 12 },
   regressButton: {
     backgroundColor: colors.gold,
     borderRadius: 12,

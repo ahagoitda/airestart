@@ -3,16 +3,19 @@ import type {
   Choice,
   ChoiceRecord,
   Episode,
+  MemoryGrant,
   Scene,
   StorySession,
   UserProfile,
 } from '@/types';
-import { getPreset, pickPreset } from '@/lib/presets';
+import { getPreset, pickPreset, presetScenarios } from '@/lib/presets';
 import { syncSession } from '@/lib/supabase';
 
 const PROFILE_KEY = 'regressor:profile';
 const SESSION_KEY = 'regressor:session';
 const ARCHIVE_KEY = 'regressor:archive';
+const MEMORIES_KEY = 'regressor:memories';
+const ENDINGS_KEY = 'regressor:endings';
 
 /** 무료 유저가 사용할 수 있는 회귀 루프 횟수 */
 export const FREE_REGRESSION_LIMIT = 1;
@@ -57,6 +60,7 @@ export async function startSession(profile: UserProfile): Promise<StorySession> 
     summary: '',
     isPremium: profile.isPremium,
     regressionCount: 0,
+    goodRegressCount: 0,
     status: 'in_progress',
     createdAt: now,
     updatedAt: now,
@@ -74,6 +78,7 @@ export async function loadSession(): Promise<StorySession | null> {
   session.aiEpisodes ??= [];
   session.totalEpisodes ??= getPreset(session.presetId).totalEpisodes;
   session.profile.style ??= 'kr_webnovel';
+  session.goodRegressCount ??= session.regressionCount;
   return session;
 }
 
@@ -121,6 +126,12 @@ export async function applyPresetChoice(
   if (choice.isPremium && !session.isPremium) {
     throw new Error('프리미엄 전용 선택지입니다.');
   }
+  if (choice.requiresMemoryId) {
+    const memories = await loadMemories(session.presetId);
+    if (!memories.some((m) => m.id === choice.requiresMemoryId)) {
+      throw new Error('이 갈림길의 기억이 아직 없습니다.');
+    }
+  }
   const scene = getCurrentScene(session);
   if (!scene) throw new Error('현재 장면이 없습니다.');
   const nextNodeId = choice.nextNodeId;
@@ -138,6 +149,13 @@ export async function applyPresetChoice(
     summary: buildSummary(history),
     status: nextNode?.isEnding ? 'completed' : 'in_progress',
   };
+  if (nextNode?.isEnding) {
+    // 엔딩 도감 기록 + 배드엔딩이 남기는 회귀의 기억 계승
+    await recordEnding(session.presetId, nextNode.id);
+    if (nextNode.grantsMemory) {
+      await grantMemory(session.presetId, nextNode.grantsMemory);
+    }
+  }
   await persist(updated);
   return updated;
 }
@@ -170,9 +188,18 @@ export async function applyAiEpisode(
   return updated;
 }
 
-/** 회귀 루프: 엔딩 후 1화로 되돌아간다. 선택 기록은 초기화, 회귀 횟수는 누적. */
+/**
+ * 회귀 루프: 엔딩 후 1화로 되돌아간다. 선택 기록은 초기화, 회귀 횟수는 누적.
+ * 배드엔딩 후 회귀(만회 기회)는 무료 한도에 계산하지 않는다.
+ */
 export async function regress(session: StorySession): Promise<StorySession> {
-  if (!session.isPremium && session.regressionCount >= FREE_REGRESSION_LIMIT) {
+  const scene = getCurrentScene(session);
+  const isBadEnding = scene?.endingType === 'bad';
+  if (
+    !session.isPremium &&
+    !isBadEnding &&
+    session.goodRegressCount >= FREE_REGRESSION_LIMIT
+  ) {
     throw new Error('무료 회귀 횟수를 모두 사용했습니다.');
   }
   await archiveSession(session);
@@ -187,6 +214,7 @@ export async function regress(session: StorySession): Promise<StorySession> {
     history: [],
     summary: '',
     regressionCount: session.regressionCount + 1,
+    goodRegressCount: session.goodRegressCount + (isBadEnding ? 0 : 1),
     status: 'in_progress',
   };
   await persist(updated);
@@ -196,6 +224,61 @@ export async function regress(session: StorySession): Promise<StorySession> {
 export async function endSession(session: StorySession): Promise<void> {
   await archiveSession(session);
   await AsyncStorage.removeItem(SESSION_KEY);
+}
+
+// ---------- 회귀의 기억 (회차를 넘어 계승) ----------
+
+export async function loadMemories(presetId: string): Promise<MemoryGrant[]> {
+  const raw = await AsyncStorage.getItem(MEMORIES_KEY);
+  const all = raw ? (JSON.parse(raw) as Record<string, MemoryGrant[]>) : {};
+  return all[presetId] ?? [];
+}
+
+async function grantMemory(presetId: string, grant: MemoryGrant): Promise<void> {
+  const raw = await AsyncStorage.getItem(MEMORIES_KEY);
+  const all = raw ? (JSON.parse(raw) as Record<string, MemoryGrant[]>) : {};
+  const list = all[presetId] ?? [];
+  if (list.some((m) => m.id === grant.id)) return;
+  all[presetId] = [...list, grant];
+  await AsyncStorage.setItem(MEMORIES_KEY, JSON.stringify(all));
+}
+
+// ---------- 엔딩 도감 ----------
+
+export interface EndingProgress {
+  presetId: string;
+  title: string;
+  collected: number;
+  total: number;
+  /** 수집한 엔딩의 노드 id 목록 */
+  seen: string[];
+}
+
+export async function loadEndingCollection(): Promise<EndingProgress[]> {
+  const raw = await AsyncStorage.getItem(ENDINGS_KEY);
+  const all = raw ? (JSON.parse(raw) as Record<string, string[]>) : {};
+  return presetScenarios.map((preset) => {
+    const endingIds = Object.values(preset.nodes)
+      .filter((n) => n.isEnding)
+      .map((n) => n.id);
+    const seen = (all[preset.id] ?? []).filter((id) => endingIds.includes(id));
+    return {
+      presetId: preset.id,
+      title: preset.title,
+      collected: seen.length,
+      total: endingIds.length,
+      seen,
+    };
+  });
+}
+
+async function recordEnding(presetId: string, nodeId: string): Promise<void> {
+  const raw = await AsyncStorage.getItem(ENDINGS_KEY);
+  const all = raw ? (JSON.parse(raw) as Record<string, string[]>) : {};
+  const list = all[presetId] ?? [];
+  if (list.includes(nodeId)) return;
+  all[presetId] = [...list, nodeId];
+  await AsyncStorage.setItem(ENDINGS_KEY, JSON.stringify(all));
 }
 
 // ---------- 라이브러리 (과거 플레이 기록) ----------
@@ -244,5 +327,11 @@ function buildSummary(history: ChoiceRecord[]): string {
 }
 
 export async function resetAll(): Promise<void> {
-  await AsyncStorage.multiRemove([PROFILE_KEY, SESSION_KEY, ARCHIVE_KEY]);
+  await AsyncStorage.multiRemove([
+    PROFILE_KEY,
+    SESSION_KEY,
+    ARCHIVE_KEY,
+    MEMORIES_KEY,
+    ENDINGS_KEY,
+  ]);
 }

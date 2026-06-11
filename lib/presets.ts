@@ -44,6 +44,13 @@ const scenario1: PresetScenario = {
           isPremium: false,
         },
         {
+          id: 'ep1-m',
+          text: '겨울이 오기 전에 움직인다 — 서연을 옥상으로 부른다',
+          nextNodeId: 'ep2c',
+          isPremium: false,
+          requiresMemoryId: 'mem-truth',
+        },
+        {
           id: 'ep1-c',
           text: '전생의 기억을 노트에 정리한다',
           isPremium: true,
@@ -88,6 +95,12 @@ const scenario1: PresetScenario = {
           isPremium: false,
         },
         {
+          id: 'ep2a-r',
+          text: '10년 치 기억을 쏟아내 미래를 증명한다',
+          nextNodeId: 'ep3a-bad',
+          isPremium: false,
+        },
+        {
           id: 'ep2a-c',
           text: '전생의 기억으로 서연의 비밀을 언급한다',
           isPremium: true,
@@ -128,17 +141,157 @@ const scenario1: PresetScenario = {
           isPremium: false,
         },
         {
+          id: 'ep2b-r',
+          text: '"네가 나중에 무슨 짓을 할지 알아." 정면으로 찌른다',
+          nextNodeId: 'ep3b-bad',
+          isPremium: false,
+        },
+        {
           id: 'ep2b-c',
           text: '미래의 사업 아이디어를 먼저 기록해둔다',
           isPremium: true,
         },
       ],
     },
+    ep2c: {
+      id: 'ep2c',
+      episodeNumber: 2,
+      title: '겨울이 오기 전에',
+      isEnding: false,
+      content: `옥상 문이 열리는 소리.
+
+서연이 의아한 얼굴로 올라왔다. "무슨 일이야? 옥상까지 부르고."
+
+{name}은(는) 심호흡을 했다. 지난 회차의 기억이 선명하다. 그해 겨울, 서연의 집이 기울고, 서연이 아무에게도 말하지 못한 채 전학을 갔다는 것. 고백할 시간 같은 건 처음부터 겨울까지뿐이었다는 것.
+
+그래서 이번에는 빠르게 왔다. 미래를 떠벌리기 위해서가 아니라, 곁에 서기 위해서.
+
+"서연아. 나는 네가 요즘 밤에 잠을 못 자는 거, 알고 있어."
+
+서연의 눈이 흔들렸다. "...어떻게."
+
+"어떻게 아는지는 중요하지 않아. 중요한 건—" {name}은(는) 말을 골랐다. 지난 회차처럼 전부 쏟아내면 안 된다. 이건 증명이 아니라 마음의 문제다.
+
+"네가 혼자가 아니라는 거야."
+
+바람이 불었다. 서연은 한참 동안 {name}을(를) 바라보다가, 처음 보는 표정으로 웃었다.
+
+"너, 뭔가 달라졌다?"`,
+      choices: [
+        {
+          id: 'ep2c-a',
+          text: '"좋아하는 사람 앞에서는 달라지기도 해." 진심을 건넨다',
+          nextNodeId: 'ep3s',
+          isPremium: false,
+        },
+        {
+          id: 'ep2c-b',
+          text: '"천천히 말할게. 우리한텐 시간이 있으니까." 곁을 지킨다',
+          nextNodeId: 'ep3a',
+          isPremium: false,
+        },
+        {
+          id: 'ep2c-c',
+          text: '겨울의 일까지 전부 막을 계획을 세운다',
+          isPremium: true,
+        },
+      ],
+    },
+    'ep3a-bad': {
+      id: 'ep3a-bad',
+      episodeNumber: 3,
+      title: '믿어주지 않는 미래',
+      isEnding: true,
+      endingType: 'bad',
+      grantsMemory: {
+        id: 'mem-truth',
+        label: '서연은 그해 겨울, 아무에게도 말하지 못한 채 전학을 간다',
+      },
+      content: `"내 말 믿어. 다음 달 중간고사 수학 마지막 문제, 17번이 오답 처리돼. 그리고 겨울에 너는—"
+
+말이 멈추지 않았다. 10년 치 기억이 둑 터지듯 쏟아졌다. 증명하고 싶었다. 이번 생은 다르다는 걸.
+
+서연의 얼굴이 천천히 굳어갔다.
+
+"...너 왜 그래. 무서워."
+
+소문은 반나절 만에 교실을 돌았다. 미래가 보인다는 애. 이상한 애. 서연은 더 이상 {name}와(과) 눈을 마주치지 않았다.
+
+그리고 겨울. {name}은(는) 멀리서 보았다. 서연이 빈 교실에서 혼자 책상을 정리하는 것을. 누구에게도 인사하지 못하고 떠나는 것을.
+
+전학. 그게 서연의 겨울이었다. 전생에도, 이번 생에도 {name}이(가) 몰랐던 진실.
+
+말을 걸 자격은 이미 잃었다. 하지만 이제는 안다. 다음 회차에는, 증명이 아니라 다른 것이 필요하다는 걸.
+
+세계가 어두워진다. 회귀의 시계가 거꾸로 돈다.
+
+— 배드 엔딩. 그러나 기억은 남는다.`,
+      choices: [],
+    },
+    'ep3b-bad': {
+      id: 'ep3b-bad',
+      episodeNumber: 3,
+      title: '앞당겨진 배신',
+      isEnding: true,
+      endingType: 'bad',
+      grantsMemory: {
+        id: 'mem-truth',
+        label: '서연은 그해 겨울, 아무에게도 말하지 못한 채 전학을 간다',
+      },
+      content: `"네가 나중에 무슨 짓을 할지 알아."
+
+점심시간의 농구 코트. 공이 바닥에 떨어져 굴렀다. 태현의 웃는 얼굴이 천천히 식었다.
+
+"...뭐?"
+
+그 순간 {name}은(는) 깨달았다. 미래의 죄를 현재의 사람에게 물을 수는 없다는 것을. 지금의 태현은 아직 아무 짓도 하지 않았다. 의심은 증거가 없고, 경고는 선전포고가 됐다.
+
+태현은 그날 이후 달라졌다. 웃음 뒤의 계산이 빨라졌다. 전생에서 졸업 후에야 시작된 일들이, 이번 생에는 교실에서 시작됐다. {name}의 노트가 사라졌다. 소문이 돌았다. 친구들이 하나둘 멀어졌다.
+
+미래를 안다는 것은 무기였다. 그리고 무기는, 빼 드는 순간 상대도 무기를 든다.
+
+겨울이 왔을 때 {name}은(는) 혼자였다. 멀리서 서연이 조용히 교실을 떠나는 것조차, 소문에 갇혀 지켜보기만 했다.
+
+세계가 어두워진다. 회귀의 시계가 거꾸로 돈다.
+
+— 배드 엔딩. 그러나 기억은 남는다.`,
+      choices: [],
+    },
+    ep3s: {
+      id: 'ep3s',
+      episodeNumber: 3,
+      title: '비틀린 운명',
+      isEnding: true,
+      endingType: 'true',
+      content: `"좋아하는 사람 앞에서는 달라지기도 해."
+
+말해버렸다. 10년 하고도 두 번의 회차를 돌아서, 마침내.
+
+서연은 눈을 동그랗게 떴다. 옥상의 바람이 두 사람 사이를 지나갔다. 한참 뒤에, 서연이 작게 웃으며 고개를 숙였다.
+
+"...이상한 애인 줄 알았는데. 너."
+
+"이상한 애 맞아. 근데 너한테만."
+
+겨울이 왔다. 서연의 집은 여전히 기울었고, 전학 통지서는 여전히 날아왔다. 미래의 모든 것을 막을 수는 없었다. 하지만 이번에는, 떠나는 날 플랫폼에 {name}이(가) 서 있었다.
+
+"기다릴게. 어디로 가든."
+
+서연은 울었고, 웃었고, 손을 흔들었다. 끝이 아니라 시작인 이별이었다.
+
+운명은 통째로 바꿀 수 없다. 그러나 운명의 의미는 바꿀 수 있다. 두 번의 실패가 가르쳐준 단 하나의 진실로, {name}은(는) 마침내 후회 없는 겨울을 가졌다.
+
+— 진 엔딩: 비틀린 운명.
+
+이것이 이 갈림길의 가장 깊은 결말이다. 다른 인생도, 다시 살아볼 수 있다.`,
+      choices: [],
+    },
     ep3a: {
       id: 'ep3a',
       episodeNumber: 3,
       title: '선택의 결과',
       isEnding: true,
+      endingType: 'good',
       content: `그날 이후, 무언가가 달라졌다.
 
 서연과 눈이 마주치는 횟수가 늘었다. 복도에서 마주치면 먼저 인사를 건네는 쪽은 이제 서연이었다. 전생에서는 단 한 번도 없던 일이다.
@@ -161,6 +314,7 @@ const scenario1: PresetScenario = {
       episodeNumber: 3,
       title: '선택의 결과',
       isEnding: true,
+      endingType: 'good',
       content: `며칠이 흘렀다.
 
 {name}은(는) 노트 한 권을 샀다. 표지에는 아무것도 쓰지 않았다. 그 안에 적힌 것이 무엇인지 아는 사람은 세상에 단 한 명뿐이다.
@@ -309,6 +463,7 @@ const scenario2: PresetScenario = {
       episodeNumber: 3,
       title: '선택의 결과',
       isEnding: true,
+      endingType: 'good',
       content: `합격 발표일 아침.
 
 {name}은(는) 결과 페이지를 열기 전에 잠시 눈을 감았다. 이상한 일이었다. 전생의 어떤 면접 결과를 기다릴 때보다 떨리는데, 동시에 어떤 때보다 후회가 없었다.
@@ -329,6 +484,7 @@ const scenario2: PresetScenario = {
       episodeNumber: 3,
       title: '선택의 결과',
       isEnding: true,
+      endingType: 'good',
       content: `그날 밤, 식탁은 평소보다 오래 차려져 있었다.
 
 {name}와(과) 아버지는 노트를 사이에 두고 세 시간을 이야기했다. 전생을 통틀어 아버지와 나눈 대화보다 길었다.
@@ -477,6 +633,7 @@ const scenario3: PresetScenario = {
       episodeNumber: 3,
       title: '선택의 결과',
       isEnding: true,
+      endingType: 'good',
       content: `일주일이 지났다.
 
 교실은 아직 {name}의 편이 아니다. 하지만 더 이상 정우진의 편도 아니다. 낙서는 다시 나타나지 않았다. 그들은 다음 표적을 고르는 중인지도 모르고, 물러서는 중인지도 모른다.
@@ -497,6 +654,7 @@ const scenario3: PresetScenario = {
       episodeNumber: 3,
       title: '선택의 결과',
       isEnding: true,
+      endingType: 'good',
       content: `수첩의 세 페이지가 채워졌다.
 
 날짜와 시간과 목격자가 적힌 기록은, 기억과는 다른 무게를 가진다. {name}은(는) 그것을 책가방 안쪽 주머니에 넣고 다닌다. 부적처럼.

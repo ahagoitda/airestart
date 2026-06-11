@@ -39,6 +39,17 @@ export interface Choice {
   /** 선택 시 이동할 다음 노드 (프리셋 전용) */
   nextNodeId?: string;
   isPremium: boolean;
+  /** 회귀 계승: 이 기억을 가진 회차에만 열리는 선택지 */
+  requiresMemoryId?: string;
+}
+
+/** 엔딩 등급 — bad는 회귀의 기억을 남기고, true는 기억으로만 도달한다 */
+export type EndingType = 'good' | 'bad' | 'true';
+
+/** 배드엔딩이 남기는 회귀의 기억 — 다음 회차에서 새 선택지를 연다 */
+export interface MemoryGrant {
+  id: string;
+  label: string;
 }
 
 export interface Episode {
@@ -52,6 +63,8 @@ export interface Episode {
 export interface PresetNode extends Episode {
   id: string;
   isEnding: boolean;
+  endingType?: EndingType;
+  grantsMemory?: MemoryGrant;
 }
 
 export interface PresetScenario {
@@ -79,6 +92,8 @@ export type SessionMode = 'preset' | 'ai';
 export interface Scene extends Episode {
   id: string;
   isEnding: boolean;
+  endingType?: EndingType;
+  grantsMemory?: MemoryGrant;
 }
 
 export interface StorySession {
@@ -98,6 +113,8 @@ export interface StorySession {
   isPremium: boolean;
   /** 회귀(다시 시작) 횟수 */
   regressionCount: number;
+  /** 무료 한도에 계산되는 회귀 횟수 (배드엔딩 후 회귀는 무료) */
+  goodRegressCount: number;
   status: SessionStatus;
   createdAt: string;
   updatedAt: string;
