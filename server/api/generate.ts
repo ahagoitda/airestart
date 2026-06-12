@@ -1,9 +1,10 @@
 // POST /api/generate — AI 에피소드 생성 프록시 (Vercel Edge Function)
 //
 // 파이프라인 (빌드 스펙):
-//   1. RAG 검색: pgvector에서 관련 이전 이벤트 조회 (현재는 기초 버전 — summary 기반)
-//   2. 컨텍스트 조립: 캐릭터 시트 + 요약 + RAG 결과
+//   1. RAG 검색: pgvector에서 관련 이전 이벤트 조회
+//   2. 컨텍스트 조립: 캐릭터 시트 + 요약 + RAG 결과 + 직전 장면 발췌
 //   3. LLM 호출 (gpt-4o-mini, structured output)
+//   4. Claude Haiku 일관성 검증 → 모순 발견 시 피드백과 함께 1회 재생성
 //
 // API 키는 이 서버의 환경변수에만 존재한다. 클라이언트에 절대 노출 금지.
 
@@ -13,11 +14,18 @@ import {
   type GenerateRequest,
 } from '../lib/prompt.js';
 import { saveStoryEvent, searchRelatedEvents } from '../lib/rag.js';
+import { checkConsistency, isConsistencyCheckEnabled } from '../lib/consistency.js';
 
 export const config = { runtime: 'edge' };
 
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
 const MODEL = 'gpt-4o-mini';
+
+interface GeneratedEpisode {
+  episodeNumber: number;
+  title: string;
+  content: string;
+}
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -37,6 +45,7 @@ function isValidRequest(body: unknown): body is GenerateRequest {
     b.currentEpisode <= 50 &&
     typeof b.summary === 'string' &&
     (b.lastChoice === null || typeof b.lastChoice === 'string') &&
+    (b.lastSceneExcerpt == null || typeof b.lastSceneExcerpt === 'string') &&
     typeof p === 'object' &&
     p !== null &&
     typeof p.name === 'string' &&
@@ -44,6 +53,46 @@ function isValidRequest(body: unknown): body is GenerateRequest {
     typeof p.regret === 'string' &&
     typeof p.returnEra === 'string'
   );
+}
+
+/** OpenAI 호출 → 에피소드 JSON. 실패 시 null. */
+async function generateOnce(
+  apiKey: string,
+  systemPrompt: string,
+  userMessage: string,
+): Promise<GeneratedEpisode | null> {
+  const res = await fetch(OPENAI_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage },
+      ],
+      response_format: { type: 'json_schema', json_schema: episodeJsonSchema },
+      temperature: 0.9,
+      // 본문 700~1,200자 + 선택지 3개가 잘리지 않도록 여유 확보
+      max_tokens: 3000,
+    }),
+  });
+  if (!res.ok) {
+    console.error('OpenAI 호출 실패:', res.status, await res.text());
+    return null;
+  }
+  const data = (await res.json()) as {
+    choices: { message: { content: string } }[];
+  };
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) return null;
+  try {
+    return JSON.parse(content) as GeneratedEpisode;
+  } catch {
+    return null;
+  }
 }
 
 export default async function handler(request: Request): Promise<Response> {
@@ -72,48 +121,25 @@ export default async function handler(request: Request): Promise<Response> {
     () => '',
   );
   const systemPrompt = buildSystemPrompt(body, ragResults);
+  const userMessage = `${body.currentEpisode}화를 작성해주세요.`;
 
-  const res = await fetch(OPENAI_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        {
-          role: 'user',
-          content: `${body.currentEpisode}화를 작성해주세요.`,
-        },
-      ],
-      response_format: { type: 'json_schema', json_schema: episodeJsonSchema },
-      temperature: 0.9,
-      // 본문 700~1,200자 + 선택지 3개가 잘리지 않도록 여유 확보
-      max_tokens: 3000,
-    }),
-  });
-
-  if (!res.ok) {
-    const detail = await res.text();
-    console.error('OpenAI 호출 실패:', res.status, detail);
+  let episode = await generateOnce(apiKey, systemPrompt, userMessage);
+  if (!episode) {
     return json({ error: '에피소드 생성에 실패했습니다.' }, 502);
   }
 
-  const data = (await res.json()) as {
-    choices: { message: { content: string } }[];
-  };
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) {
-    return json({ error: 'AI 응답이 비어 있습니다.' }, 502);
-  }
+  // 일관성 검증 (Claude Haiku) — 모순 발견 시 피드백을 주고 1회 재생성
+  if (isConsistencyCheckEnabled()) {
+    const check = await checkConsistency(body, episode);
+    if (!check.consistent && check.problems.length > 0) {
+      console.warn('일관성 문제 발견, 재생성:', check.problems);
+      const retryMessage = `${userMessage}
 
-  let episode: { episodeNumber: number; title: string; content: string };
-  try {
-    episode = JSON.parse(content);
-  } catch {
-    return json({ error: 'AI 응답 파싱에 실패했습니다.' }, 502);
+[검수 피드백 — 이전 초고에서 발견된 모순. 반드시 수정해서 다시 쓸 것]
+${check.problems.map((p) => `- ${p}`).join('\n')}`;
+      const retried = await generateOnce(apiKey, systemPrompt, retryMessage);
+      if (retried) episode = retried;
+    }
   }
 
   // 생성된 에피소드를 RAG 사건으로 저장 — 실패해도 응답은 정상 반환

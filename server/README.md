@@ -14,7 +14,7 @@ Vercel 프로젝트 환경변수에 설정:
 | 변수 | 설명 |
 |---|---|
 | `OPENAI_API_KEY` | OpenAI API 키 (필수) |
-| `ANTHROPIC_API_KEY` | Claude Haiku 캐릭터 일관성 검증용 (예정) |
+| `ANTHROPIC_API_KEY` | Claude Haiku(claude-haiku-4-5) 일관성 검증 패스 — 미설정 시 검증 생략 |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | RAG(pgvector) 검색용 (예정) |
 
 배포 후 앱의 `.env`에 `EXPO_PUBLIC_API_URL=https://<배포주소>/api` 를 넣는다.
@@ -39,7 +39,7 @@ Vercel 프로젝트 환경변수에 설정:
 
 ## 로드맵
 
-- [ ] pgvector RAG 검색 (`story_events` 임베딩 → 관련 사건 주입)
+- [x] pgvector RAG 검색 (`story_events` 임베딩 → 관련 사건 주입)
+- [x] Claude Haiku 일관성 검증 패스 (모순 발견 시 피드백 재생성 1회)
 - [ ] 중요 분기에서 GPT-4o로 승격
-- [ ] Claude Haiku 캐릭터 일관성 검증 패스
 - [ ] 스트리밍 응답 (SSE)

@@ -184,14 +184,15 @@ export async function applyAiEpisode(
   const history =
     choice && scene ? [...session.history, makeRecord(scene, choice)] : session.history;
   const totalEpisodes = Math.max(session.totalEpisodes, AI_TOTAL_EPISODES);
+  const aiEpisodes = [...session.aiEpisodes, episode];
   const updated: StorySession = {
     ...session,
     mode: 'ai',
     totalEpisodes,
-    aiEpisodes: [...session.aiEpisodes, episode],
+    aiEpisodes,
     currentEpisode: episode.episodeNumber,
     history,
-    summary: buildSummary(history),
+    summary: buildAiSummary(history, aiEpisodes),
     status: episode.episodeNumber >= totalEpisodes ? 'completed' : 'in_progress',
   };
   await persist(updated);
@@ -351,6 +352,17 @@ function buildSummary(history: ChoiceRecord[]): string {
   return history
     .map((h) => `${h.episodeNumber}화에서 "${h.choiceText}"를 선택했다.`)
     .join(' ');
+}
+
+/** AI 모드 요약: 에피소드 제목 흐름 + 선택 기록 — 다음 화 생성 컨텍스트가 된다 */
+function buildAiSummary(history: ChoiceRecord[], aiEpisodes: Episode[]): string {
+  const arc = aiEpisodes
+    .map((e) => `${e.episodeNumber}화 "${e.title}"`)
+    .join(' → ');
+  const choices = buildSummary(history);
+  return [arc && `[전개] ${arc}`, choices && `[선택] ${choices}`]
+    .filter(Boolean)
+    .join('\n');
 }
 
 export async function resetAll(): Promise<void> {

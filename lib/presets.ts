@@ -204,7 +204,7 @@ const scenario1: PresetScenario = {
       episodeNumber: 3,
       title: '방과후의 떡볶이',
       isEnding: false,
-      content: `학교 앞 분식집. 김이 서린 창문 안쪽에 두 사람이 마주 앉았다.
+      content: `그날 방과 후. 어쩌다 보니 두 사람은 학교 앞 분식집에 마주 앉아 있었다. 김이 서린 창문이 바깥의 소음을 지워주었다.
 
 "너 원래 이런 캐릭터였어?" 서연이 떡볶이를 집으며 웃었다. "갑자기 사람이 달라졌다고 반에서 소문났어."
 
@@ -402,7 +402,7 @@ const scenario1: PresetScenario = {
         {
           id: 'ep3c1-b',
           text: '"겨울까지 시간 있잖아. 하루씩, 좋은 날로 채우자."',
-          nextNodeId: 'ep4a1',
+          nextNodeId: 'ep4c1',
           isPremium: false,
         },
         {
@@ -629,7 +629,7 @@ const scenario1: PresetScenario = {
 
 "진짜 왔네." 서연이 캐리어를 세우고 웃었다. 입김이 하얗게 피어올랐다.
 
-"약속했잖아. 기다린다고."
+"그랬잖아, 옥상에서. 네 시간이 어디로 가든 나는 네 편이라고."
 
 "...기차 타고 두 시간이야. 자주 못 와."
 
@@ -937,7 +937,7 @@ const scenario2: PresetScenario = {
         {
           id: 'ep2c-b',
           text: '아버지의 말을 존중해, 내 원서에 집중한다',
-          nextNodeId: 'ep3b',
+          nextNodeId: 'ep3a',
           isPremium: false,
         },
         {
@@ -1221,7 +1221,7 @@ const scenario3: PresetScenario = {
         },
         {
           id: 'ep2c-b',
-          text: '아직은 때를 기다리며 기록을 더 쌓는다',
+          text: '지수처럼 나도 오늘부터 수첩에 기록을 시작한다',
           nextNodeId: 'ep3b',
           isPremium: false,
         },
