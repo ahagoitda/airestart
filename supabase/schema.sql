@@ -56,6 +56,30 @@ CREATE POLICY "Users can insert own sessions" ON story_sessions
 CREATE POLICY "Users can update own sessions" ON story_sessions
   FOR UPDATE USING (auth.uid() = user_id);
 
+-- choice_stats (선택지 통계 — "회귀자의 73%가 이 선택을 했다")
+CREATE TABLE choice_stats (
+  preset_id TEXT NOT NULL,
+  node_id TEXT NOT NULL,
+  choice_id TEXT NOT NULL,
+  picks BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (preset_id, node_id, choice_id)
+);
+
+ALTER TABLE choice_stats ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can read choice stats" ON choice_stats
+  FOR SELECT USING (true);
+
+-- 익명 유저도 집계만 올릴 수 있도록 SECURITY DEFINER RPC 사용 (직접 INSERT/UPDATE는 차단)
+CREATE OR REPLACE FUNCTION record_choice(p_preset TEXT, p_node TEXT, p_choice TEXT)
+RETURNS void
+LANGUAGE sql SECURITY DEFINER AS $$
+  INSERT INTO choice_stats (preset_id, node_id, choice_id, picks)
+  VALUES (p_preset, p_node, p_choice, 1)
+  ON CONFLICT (preset_id, node_id, choice_id)
+  DO UPDATE SET picks = choice_stats.picks + 1;
+$$;
+
 -- RAG: 세션 내에서 질의 임베딩과 가까운 사건 상위 k개
 CREATE OR REPLACE FUNCTION match_story_events(
   p_session_id UUID,

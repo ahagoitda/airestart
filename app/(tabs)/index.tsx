@@ -3,9 +3,10 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import type { StorySession, UserProfile } from '@/types';
-import { loadProfile, loadSession } from '@/lib/story-engine';
+import { loadProfile, loadSession, startSession } from '@/lib/story-engine';
 import { getPreset } from '@/lib/presets';
-import { HeroEmblem } from '@/components/illustrations';
+import { getDailyChallenge } from '@/lib/daily';
+import { HeroEmblem, ScenarioCover } from '@/components/illustrations';
 import { colors, spacing, typography } from '@/lib/theme';
 
 export default function HomeScreen() {
@@ -43,6 +44,32 @@ export default function HomeScreen() {
   };
   const resume = () => router.push('/play');
 
+  const daily = getDailyChallenge();
+  const startDaily = () => {
+    if (!profile) {
+      router.push('/onboarding');
+      return;
+    }
+    const begin = () => {
+      void startSession(profile, {
+        presetId: daily.preset.id,
+        style: daily.style.value,
+      }).then(() => router.push('/play'));
+    };
+    if (canResume) {
+      Alert.alert(
+        '오늘의 회귀',
+        '진행 중인 회차를 접고 오늘의 조합으로 시작할까요?',
+        [
+          { text: '취소', style: 'cancel' },
+          { text: '시작', style: 'destructive', onPress: begin },
+        ],
+      );
+      return;
+    }
+    begin();
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.hero}>
@@ -56,6 +83,19 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.actions}>
+        <Pressable style={styles.dailyCard} onPress={startDaily}>
+          <ScenarioCover presetId={daily.preset.id} size={48} />
+          <View style={styles.dailyBody}>
+            <Text style={styles.dailyLabel}>오늘의 회귀</Text>
+            <Text style={styles.dailyTitle}>
+              {daily.preset.title} × {daily.style.label}
+            </Text>
+            <Text style={styles.dailyDesc} numberOfLines={1}>
+              {daily.style.description}
+            </Text>
+          </View>
+          <Text style={styles.dailyArrow}>›</Text>
+        </Pressable>
         {canResume && session && (
           <Pressable style={[styles.button, styles.primary]} onPress={resume}>
             <Text style={styles.primaryText}>이어하기</Text>
@@ -91,6 +131,21 @@ const styles = StyleSheet.create({
   title: { ...typography.title, fontSize: 32, marginTop: spacing.md },
   tagline: { ...typography.subtitle, marginTop: spacing.sm, textAlign: 'center' },
   actions: { gap: spacing.sm, marginBottom: spacing.lg },
+  dailyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.goldDim,
+    borderRadius: 12,
+    padding: spacing.md,
+  },
+  dailyBody: { flex: 1, gap: 2 },
+  dailyLabel: { color: colors.gold, fontSize: 11, fontWeight: '700' },
+  dailyTitle: { color: colors.text, fontSize: 15, fontWeight: '600' },
+  dailyDesc: { color: colors.textFaint, fontSize: 12 },
+  dailyArrow: { color: colors.textMuted, fontSize: 24 },
   button: {
     borderRadius: 12,
     paddingVertical: 18,

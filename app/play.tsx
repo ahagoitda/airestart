@@ -14,6 +14,7 @@ import {
   FREE_REGRESSION_LIMIT,
 } from '@/lib/story-engine';
 import { generateEpisode, isAiAvailable } from '@/lib/ai';
+import { getChoicePercent, recordChoicePick } from '@/lib/stats';
 import { personalize } from '@/lib/presets';
 import { shareStory } from '@/lib/export';
 import TypewriterText from '@/components/TypewriterText';
@@ -31,6 +32,7 @@ export default function PlayScreen() {
   const [generating, setGenerating] = useState(false);
   const [typingDone, setTypingDone] = useState(false);
   const [memories, setMemories] = useState<MemoryGrant[]>([]);
+  const [choiceStat, setChoiceStat] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const sceneIdRef = useRef<string | null>(null);
 
@@ -147,12 +149,22 @@ export default function PlayScreen() {
     }
     // AI 모드이거나, 프리셋의 모험(프리미엄) 선택지 → AI 생성으로 진행
     if (session.mode === 'ai' || !choice.nextNodeId) {
+      setChoiceStat(null);
       await generateNext(session, choice);
       return;
     }
     setTypingDone(false);
+    setChoiceStat(null);
+    const nodeId = getCurrentScene(session)?.id;
     const updated = await applyPresetChoice(session, choice);
     setSession(updated);
+    // 선택 통계: 기록 후 같은 갈림길의 분포를 가져와 다음 장면 상단에 표시
+    if (nodeId) {
+      recordChoicePick(session.presetId, nodeId, choice.id);
+      void getChoicePercent(session.presetId, nodeId, choice.id).then((pct) => {
+        if (pct !== null) setChoiceStat(`⟲ 회귀자의 ${pct}%가 같은 선택을 했다`);
+      });
+    }
   };
 
   const onRegress = async () => {
@@ -204,6 +216,7 @@ export default function PlayScreen() {
           if (typingDone) scrollRef.current?.scrollToEnd({ animated: true });
         }}
       >
+        {choiceStat && <Text style={styles.statBanner}>{choiceStat}</Text>}
         <SceneTransition sceneKey={scene.id}>
           <TypewriterText
             key={scene.id}
@@ -327,6 +340,11 @@ const styles = StyleSheet.create({
   headerTitle: { color: colors.gold, fontSize: 15, fontWeight: '600', flex: 1 },
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.lg, paddingBottom: spacing.xl },
+  statBanner: {
+    color: colors.goldDim,
+    fontSize: 13,
+    marginBottom: spacing.md,
+  },
   choices: { marginTop: spacing.xl },
   endingArt: { alignItems: 'center', marginBottom: spacing.lg, gap: spacing.sm },
   endingBadge: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },

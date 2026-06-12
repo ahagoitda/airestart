@@ -44,12 +44,22 @@ export async function loadProfile(): Promise<UserProfile | null> {
 
 // ---------- 세션 ----------
 
-export async function startSession(profile: UserProfile): Promise<StorySession> {
-  const preset = pickPreset(profile);
+export interface StartOverrides {
+  /** 프로필 매칭 대신 특정 시나리오로 시작 (오늘의 회귀 등) */
+  presetId?: string;
+  /** 이 세션에서만 쓸 문체 (프로필 기본값은 유지) */
+  style?: string;
+}
+
+export async function startSession(
+  profile: UserProfile,
+  overrides?: StartOverrides,
+): Promise<StorySession> {
+  const preset = overrides?.presetId ? getPreset(overrides.presetId) : pickPreset(profile);
   const now = new Date().toISOString();
   const session: StorySession = {
     id: makeId(),
-    profile,
+    profile: overrides?.style ? { ...profile, style: overrides.style } : profile,
     mode: profile.isPremium ? 'ai' : 'preset',
     presetId: preset.id,
     currentNodeId: preset.startNodeId,
