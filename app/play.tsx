@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { captureRef } from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import type { Choice, MemoryGrant, StorySession } from '@/types';
@@ -23,6 +33,7 @@ import SceneTransition from '@/components/SceneTransition';
 import LoadingIndicator from '@/components/LoadingIndicator';
 import EpisodeIndicator from '@/components/EpisodeIndicator';
 import AdBanner from '@/components/AdBanner';
+import ShareCard from '@/components/ShareCard';
 import { ScenarioCover } from '@/components/illustrations';
 import { colors, spacing } from '@/lib/theme';
 
@@ -33,6 +44,8 @@ export default function PlayScreen() {
   const [typingDone, setTypingDone] = useState(false);
   const [memories, setMemories] = useState<MemoryGrant[]>([]);
   const [choiceStat, setChoiceStat] = useState<string | null>(null);
+  const [cardVisible, setCardVisible] = useState(false);
+  const cardRef = useRef<View>(null);
   const scrollRef = useRef<ScrollView>(null);
   const sceneIdRef = useRef<string | null>(null);
 
@@ -184,6 +197,19 @@ export default function PlayScreen() {
     }
   };
 
+  const onShareCard = async () => {
+    try {
+      const uri = await captureRef(cardRef, { format: 'png', quality: 1 });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, { mimeType: 'image/png' });
+      } else {
+        Alert.alert('공유 불가', '이 기기에서는 공유 기능을 사용할 수 없습니다.');
+      }
+    } catch {
+      // 사용자가 공유 시트를 닫은 경우 등 — 무시
+    }
+  };
+
   const onExport = async () => {
     if (!session.isPremium) {
       Alert.alert('🔒 프리미엄 기능', '소설 내보내기는 프리미엄 전용입니다.');
@@ -304,6 +330,9 @@ export default function PlayScreen() {
                   : '다른 선택, 다른 운명'}
               </Text>
             </Pressable>
+            <Pressable style={styles.exportButton} onPress={() => setCardVisible(true)}>
+              <Text style={styles.exportText}>엔딩 카드 공유</Text>
+            </Pressable>
             <Pressable style={styles.exportButton} onPress={() => void onExport()}>
               <Text style={styles.exportText}>
                 소설로 내보내기{session.isPremium ? '' : '  🔒'}
@@ -323,6 +352,23 @@ export default function PlayScreen() {
         <EpisodeIndicator current={scene.episodeNumber} total={session.totalEpisodes} />
       </View>
       <AdBanner visible={!session.isPremium} />
+
+      <Modal visible={cardVisible} transparent animationType="fade">
+        <View style={styles.cardOverlay}>
+          <ShareCard ref={cardRef} session={session} scene={scene} />
+          <View style={styles.cardActions}>
+            <Pressable style={styles.cardShareButton} onPress={() => void onShareCard()}>
+              <Text style={styles.cardShareText}>공유하기</Text>
+            </Pressable>
+            <Pressable
+              style={styles.cardCloseButton}
+              onPress={() => setCardVisible(false)}
+            >
+              <Text style={styles.cardCloseText}>닫기</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -401,6 +447,30 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   homeText: { color: colors.textMuted, fontSize: 15 },
+  cardOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.lg,
+    gap: spacing.lg,
+  },
+  cardActions: { flexDirection: 'row', gap: spacing.sm },
+  cardShareButton: {
+    backgroundColor: colors.gold,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: spacing.xl,
+  },
+  cardShareText: { color: '#0A0A0A', fontSize: 16, fontWeight: '700' },
+  cardCloseButton: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: spacing.lg,
+  },
+  cardCloseText: { color: colors.textMuted, fontSize: 16 },
   retryWrap: {
     flex: 1,
     justifyContent: 'center',
