@@ -37,8 +37,8 @@ for (const s of presetScenarios) {
       continue;
     }
 
-    if (node.choices.length < 2 || node.choices.length > 4)
-      err(`[${s.id}/${id}] 선택지 ${node.choices.length}개 (2~4개여야 함)`);
+    if (node.choices.length < 2 || node.choices.length > 5)
+      err(`[${s.id}/${id}] 선택지 ${node.choices.length}개 (2~5개여야 함)`);
     const premium = node.choices.filter((c) => c.isPremium);
     if (premium.length !== 1 || !node.choices.at(-1).isPremium)
       err(`[${s.id}/${id}] 마지막 선택지 하나만 프리미엄이어야 함`);

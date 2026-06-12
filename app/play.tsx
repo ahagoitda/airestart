@@ -6,6 +6,7 @@ import type { Choice, MemoryGrant, StorySession } from '@/types';
 import {
   applyAiEpisode,
   applyPresetChoice,
+  continueSeason,
   getCurrentScene,
   loadMemories,
   loadSession,
@@ -264,6 +265,21 @@ export default function PlayScreen() {
                 </Text>
               </View>
             )}
+            {session.mode === 'ai' && session.isPremium && (
+              <Pressable
+                style={styles.seasonButton}
+                onPress={() => {
+                  void continueSeason(session).then((updated) => {
+                    setSession(updated);
+                  });
+                }}
+              >
+                <Text style={styles.seasonText}>
+                  ▶ 다음 시즌 계속 ({session.totalEpisodes + 1}화~)
+                </Text>
+                <Text style={styles.seasonSub}>같은 세계, 이어지는 운명</Text>
+              </Pressable>
+            )}
             <Pressable style={styles.regressButton} onPress={() => void onRegress()}>
               <Text style={styles.regressText}>
                 ⟲ {scene.endingType === 'bad' ? '기억을 안고 다시 회귀하기' : '다시 회귀하기'}
@@ -328,6 +344,18 @@ const styles = StyleSheet.create({
   memoryBoxLabel: { color: colors.gold, fontSize: 13, fontWeight: '700' },
   memoryBoxText: { color: colors.text, fontSize: 15, lineHeight: 22 },
   memoryBoxHint: { color: colors.textFaint, fontSize: 12 },
+  seasonButton: {
+    backgroundColor: colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: colors.gold,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: spacing.sm,
+  },
+  seasonText: { color: colors.gold, fontSize: 17, fontWeight: '700' },
+  seasonSub: { color: colors.textMuted, fontSize: 12 },
   regressButton: {
     backgroundColor: colors.gold,
     borderRadius: 12,

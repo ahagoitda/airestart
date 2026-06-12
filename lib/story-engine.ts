@@ -221,6 +221,23 @@ export async function regress(session: StorySession): Promise<StorySession> {
   return updated;
 }
 
+/**
+ * AI 모드 시즌제: 10화 엔딩 후 같은 세계관으로 다음 시즌(+10화)을 이어간다.
+ * 프리미엄 전용 — AI 생성 회차는 사실상 무한히 이어질 수 있다.
+ */
+export async function continueSeason(session: StorySession): Promise<StorySession> {
+  if (!session.isPremium || session.mode !== 'ai') {
+    throw new Error('시즌 연장은 프리미엄 AI 모드 전용입니다.');
+  }
+  const updated: StorySession = {
+    ...session,
+    totalEpisodes: session.totalEpisodes + AI_TOTAL_EPISODES,
+    status: 'in_progress',
+  };
+  await persist(updated);
+  return updated;
+}
+
 export async function endSession(session: StorySession): Promise<void> {
   await archiveSession(session);
   await AsyncStorage.removeItem(SESSION_KEY);

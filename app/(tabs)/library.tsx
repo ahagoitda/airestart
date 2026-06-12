@@ -8,21 +8,24 @@ import {
   type ArchiveEntry,
   type EndingProgress,
 } from '@/lib/story-engine';
+import { loadAchievements, type Achievement } from '@/lib/achievements';
 import { ScenarioCover } from '@/components/illustrations';
 import { colors, spacing, typography } from '@/lib/theme';
 
 export default function LibraryScreen() {
   const [entries, setEntries] = useState<ArchiveEntry[]>([]);
   const [collection, setCollection] = useState<EndingProgress[]>([]);
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      void Promise.all([loadArchive(), loadEndingCollection()]).then(
-        ([list, endings]) => {
+      void Promise.all([loadArchive(), loadEndingCollection(), loadAchievements()]).then(
+        ([list, endings, badges]) => {
           if (active) {
             setEntries(list);
             setCollection(endings);
+            setAchievements(badges);
           }
         },
       );
@@ -41,7 +44,8 @@ export default function LibraryScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         ListHeaderComponent={
-          <View style={styles.dexSection}>
+          <>
+            <View style={styles.dexSection}>
             <Text style={styles.dexTitle}>엔딩 도감</Text>
             {collection.map((p) => (
               <View key={p.presetId} style={styles.dexRow}>
@@ -67,7 +71,32 @@ export default function LibraryScreen() {
                 </Text>
               </View>
             ))}
-          </View>
+            </View>
+            <View style={styles.badgeSection}>
+              <Text style={styles.dexTitle}>
+                업적 {achievements.filter((a) => a.unlocked).length}/
+                {achievements.length}
+              </Text>
+              <View style={styles.badgeWrap}>
+                {achievements.map((a) => (
+                  <View
+                    key={a.id}
+                    style={[styles.badge, a.unlocked && styles.badgeUnlocked]}
+                  >
+                    <Text
+                      style={[
+                        styles.badgeText,
+                        a.unlocked && styles.badgeTextUnlocked,
+                      ]}
+                    >
+                      {a.unlocked ? '✦ ' : '○ '}
+                      {a.title}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </>
         }
         ListEmptyComponent={
           <Text style={styles.empty}>
@@ -127,6 +156,26 @@ const styles = StyleSheet.create({
   dexFill: { height: '100%', backgroundColor: colors.gold },
   dexCount: { color: colors.textMuted, fontSize: 13 },
   dexCountDone: { color: colors.gold, fontWeight: '700' },
+  badgeSection: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    padding: spacing.md,
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  badgeWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  badge: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  badgeUnlocked: { borderColor: colors.goldDim, backgroundColor: colors.surfaceRaised },
+  badgeText: { color: colors.textFaint, fontSize: 12 },
+  badgeTextUnlocked: { color: colors.gold },
   empty: {
     ...typography.subtitle,
     textAlign: 'center',
