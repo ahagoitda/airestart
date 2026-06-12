@@ -56,6 +56,29 @@ CREATE POLICY "Users can insert own sessions" ON story_sessions
 CREATE POLICY "Users can update own sessions" ON story_sessions
   FOR UPDATE USING (auth.uid() = user_id);
 
+-- generation_usage (AI 생성 폭주 방지 — 일일 전체 한도)
+CREATE TABLE generation_usage (
+  day DATE PRIMARY KEY,
+  count BIGINT NOT NULL DEFAULT 0
+);
+
+ALTER TABLE generation_usage ENABLE ROW LEVEL SECURITY;
+
+-- 서버(서비스 롤)만 호출. 한도 이내면 카운트를 올리고 true, 초과면 false.
+CREATE OR REPLACE FUNCTION bump_generation_usage(p_limit BIGINT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  new_count BIGINT;
+BEGIN
+  INSERT INTO generation_usage (day, count)
+  VALUES (CURRENT_DATE, 1)
+  ON CONFLICT (day) DO UPDATE SET count = generation_usage.count + 1
+  RETURNING count INTO new_count;
+  RETURN new_count <= p_limit;
+END;
+$$;
+
 -- choice_stats (선택지 통계 — "회귀자의 73%가 이 선택을 했다")
 CREATE TABLE choice_stats (
   preset_id TEXT NOT NULL,

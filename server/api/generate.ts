@@ -15,11 +15,16 @@ import {
 } from '../lib/prompt.js';
 import { saveStoryEvent, searchRelatedEvents } from '../lib/rag.js';
 import { checkConsistency, isConsistencyCheckEnabled } from '../lib/consistency.js';
+import { tryConsumeGeneration } from '../lib/limits.js';
 
 export const config = { runtime: 'edge' };
 
-const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
-const MODEL = 'gpt-4o-mini';
+// LLM 제공자는 OpenAI 호환 API면 무엇이든 가능 — env로 교체한다.
+// 예) Groq 무료 티어: OPENAI_BASE_URL=https://api.groq.com/openai/v1, OPENAI_MODEL=llama-3.3-70b-versatile
+//     로컬 Ollama:    OPENAI_BASE_URL=http://localhost:11434/v1,      OPENAI_MODEL=qwen2.5:14b
+//     기본값:         OpenAI gpt-4o-mini
+const BASE_URL = process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1';
+const MODEL = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
 
 interface GeneratedEpisode {
   episodeNumber: number;
@@ -55,44 +60,59 @@ function isValidRequest(body: unknown): body is GenerateRequest {
   );
 }
 
-/** OpenAI 호출 → 에피소드 JSON. 실패 시 null. */
+/** OpenAI 호환 API 호출 → 에피소드 JSON. 실패 시 null. */
 async function generateOnce(
   apiKey: string,
   systemPrompt: string,
   userMessage: string,
 ): Promise<GeneratedEpisode | null> {
-  const res = await fetch(OPENAI_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage },
-      ],
-      response_format: { type: 'json_schema', json_schema: episodeJsonSchema },
-      temperature: 0.9,
-      // 본문 700~1,200자 + 선택지 3개가 잘리지 않도록 여유 확보
-      max_tokens: 3000,
-    }),
-  });
-  if (!res.ok) {
-    console.error('OpenAI 호출 실패:', res.status, await res.text());
-    return null;
+  // json_schema를 지원하지 않는 호환 제공자(Groq/Ollama 일부)는 json_object로 폴백
+  for (const strict of [true, false]) {
+    const res = await fetch(`${BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          {
+            role: 'user',
+            content: strict
+              ? userMessage
+              : `${userMessage}\n\n반드시 다음 형태의 JSON만 출력: {"episodeNumber": number, "title": string, "content": string, "choices": [{"id": string, "text": string, "isPremium": boolean} x3, 마지막만 isPremium true]}`,
+          },
+        ],
+        response_format: strict
+          ? { type: 'json_schema', json_schema: episodeJsonSchema }
+          : { type: 'json_object' },
+        temperature: 0.9,
+        // 본문 700~1,200자 + 선택지 3개가 잘리지 않도록 여유 확보
+        max_tokens: 3000,
+      }),
+    });
+    if (res.status === 400 && strict) {
+      // 제공자가 json_schema 미지원 → json_object로 재시도
+      continue;
+    }
+    if (!res.ok) {
+      console.error('LLM 호출 실패:', res.status, await res.text());
+      return null;
+    }
+    const data = (await res.json()) as {
+      choices: { message: { content: string } }[];
+    };
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) return null;
+    try {
+      return JSON.parse(content) as GeneratedEpisode;
+    } catch {
+      return null;
+    }
   }
-  const data = (await res.json()) as {
-    choices: { message: { content: string } }[];
-  };
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) return null;
-  try {
-    return JSON.parse(content) as GeneratedEpisode;
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 export default async function handler(request: Request): Promise<Response> {
@@ -113,6 +133,14 @@ export default async function handler(request: Request): Promise<Response> {
   }
   if (!isValidRequest(body)) {
     return json({ error: '요청 형식이 올바르지 않습니다.' }, 400);
+  }
+
+  // 폭주 방지: 일일 전체 생성 한도 (과금 하드 캡)
+  if (!(await tryConsumeGeneration())) {
+    return json(
+      { error: '오늘의 AI 생성 한도에 도달했습니다. 내일 다시 시도해 주세요.' },
+      429,
+    );
   }
 
   // RAG: 마지막 선택과 관련된 이전 사건 검색 (Supabase 미설정 시 빈 컨텍스트)

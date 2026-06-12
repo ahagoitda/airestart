@@ -13,7 +13,10 @@ Vercel 프로젝트 환경변수에 설정:
 
 | 변수 | 설명 |
 |---|---|
-| `OPENAI_API_KEY` | OpenAI API 키 (필수) |
+| `OPENAI_API_KEY` | LLM API 키 (필수) |
+| `OPENAI_BASE_URL` | OpenAI 호환 제공자 교체용 (선택). 예: Groq 무료 티어 `https://api.groq.com/openai/v1`, 로컬 Ollama `http://localhost:11434/v1` |
+| `OPENAI_MODEL` | 모델 교체용 (기본 `gpt-4o-mini`). 예: `llama-3.3-70b-versatile`, `qwen2.5:14b` |
+| `DAILY_GENERATION_LIMIT` | 일일 전체 생성 한도 — 과금 하드 캡 (기본 500, Supabase 필요) |
 | `ANTHROPIC_API_KEY` | Claude Haiku(claude-haiku-4-5) 일관성 검증 패스 — 미설정 시 검증 생략 |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | RAG(pgvector) 검색용 (예정) |
 

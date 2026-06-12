@@ -48,7 +48,12 @@ export async function generateEpisode(session: StorySession): Promise<Episode> {
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    throw new Error(`에피소드 생성 실패 (${res.status})`);
+    // 서버가 보낸 사유(일일 한도 도달 등)를 그대로 사용자에게 전달
+    const detail = await res
+      .json()
+      .then((d: { error?: string }) => d.error)
+      .catch(() => null);
+    throw new Error(detail ?? `에피소드 생성 실패 (${res.status})`);
   }
   return (await res.json()) as Episode;
 }
